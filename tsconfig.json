@@ -1,0 +1,20 @@
+{
+  "//": "Editor and linter view: every TypeScript file, including tests and configs. Emits nothing. The build graph is tsconfig.build.json.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"]
+  },
+  "include": [
+    "apps/*/src/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "apps/*/test/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "tests/**/*.ts",
+    "*.config.ts"
+  ],
+  "exclude": ["node_modules", "**/dist", ".tooling"]
+}

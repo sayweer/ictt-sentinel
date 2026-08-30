@@ -17,6 +17,9 @@ coverage/
 .pnpm-store/
 *.tsbuildinfo
 
+# Proje-yerel pinli toolchain (indirilir, commit edilmez)
+.tooling/
+
 # OS / editor
 .DS_Store
 Thumbs.db

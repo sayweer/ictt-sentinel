@@ -1,0 +1,50 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/agent"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/cli"
+    },
+    {
+      "path": "./apps/console"
+    },
+    {
+      "path": "./packages/alerts"
+    },
+    {
+      "path": "./packages/config"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/evidence"
+    },
+    {
+      "path": "./packages/ictt-adapters"
+    },
+    {
+      "path": "./packages/invariant-core"
+    },
+    {
+      "path": "./packages/replay"
+    },
+    {
+      "path": "./packages/rpc-quorum"
+    },
+    {
+      "path": "./packages/state-machine"
+    },
+    {
+      "path": "./packages/storage-postgres"
+    },
+    {
+      "path": "./packages/testkit"
+    }
+  ]
+}

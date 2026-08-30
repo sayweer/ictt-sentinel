@@ -6,7 +6,10 @@
   "description": "Deterministic fixtures and test helpers. Never used by production code paths.",
   "license": "UNLICENSED",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "ictt-sentinel": {
     "layer": 1,
@@ -15,5 +18,28 @@
       "@ictt-sentinel/config",
       "@ictt-sentinel/evidence"
     ]
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --build --force",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "test": "vitest run --root ../.."
+  },
+  "dependencies": {
+    "@ictt-sentinel/domain": "workspace:*",
+    "@ictt-sentinel/config": "workspace:*",
+    "@ictt-sentinel/evidence": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "eslint": "10.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
   }
 }

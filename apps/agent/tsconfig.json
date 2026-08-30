@@ -1,0 +1,43 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "test"],
+  "references": [
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/config"
+    },
+    {
+      "path": "../../packages/invariant-core"
+    },
+    {
+      "path": "../../packages/state-machine"
+    },
+    {
+      "path": "../../packages/evidence"
+    },
+    {
+      "path": "../../packages/rpc-quorum"
+    },
+    {
+      "path": "../../packages/ictt-adapters"
+    },
+    {
+      "path": "../../packages/replay"
+    },
+    {
+      "path": "../../packages/storage-postgres"
+    },
+    {
+      "path": "../../packages/alerts"
+    }
+  ]
+}

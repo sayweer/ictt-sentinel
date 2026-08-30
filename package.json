@@ -11,6 +11,32 @@
     "pnpm": ">=11.10.0 <12"
   },
   "scripts": {
-    "verify:config": "node scripts/verify-config.mjs"
+    "bootstrap:check": "node scripts/bootstrap-check.mjs",
+    "verify:config": "node scripts/verify-config.mjs",
+    "verify:scaffold": "node scripts/verify-scaffold.mjs",
+    "secrets:check": "node scripts/check-secrets.mjs",
+    "boundaries:check": "node scripts/check-boundaries.mjs",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint .",
+    "typecheck": "tsc --build --force tsconfig.build.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "build": "tsc --build tsconfig.build.json",
+    "clean": "tsc --build --clean tsconfig.build.json",
+    "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "@vitest/coverage-v8": "4.1.11",
+    "eslint": "10.9.1",
+    "fast-check": "4.9.0",
+    "globals": "17.11.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0",
+    "vitest": "4.1.11"
   }
 }

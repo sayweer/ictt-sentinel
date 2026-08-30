@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "test"],
+  "references": [
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../state-machine"
+    },
+    {
+      "path": "../rpc-quorum"
+    },
+    {
+      "path": "../ictt-adapters"
+    },
+    {
+      "path": "../storage-postgres"
+    }
+  ]
+}
