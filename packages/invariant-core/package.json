@@ -1,0 +1,17 @@
+{
+  "name": "@ictt-sentinel/invariant-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic invariant rules. Pure: no I/O, env, clock or randomness.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 0,
+    "mayDependOn": [
+      "@ictt-sentinel/domain"
+    ]
+  }
+}

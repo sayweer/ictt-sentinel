@@ -1,0 +1,17 @@
+{
+  "name": "@ictt-sentinel/state-machine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Message lifecycle state machine. Pure: no I/O, env, clock or randomness.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 0,
+    "mayDependOn": [
+      "@ictt-sentinel/domain"
+    ]
+  }
+}

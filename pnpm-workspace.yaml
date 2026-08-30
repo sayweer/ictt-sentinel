@@ -1,0 +1,6 @@
+# Workspace membership. Single source of truth for pnpm.
+# The root package.json deliberately has no "workspaces" field so this file is
+# the only place workspace globs are declared.
+packages:
+  - "apps/*"
+  - "packages/*"

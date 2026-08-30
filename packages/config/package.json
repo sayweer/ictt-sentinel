@@ -1,0 +1,17 @@
+{
+  "name": "@ictt-sentinel/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Manifest and policy schema plus validation. Parses injected input; never reads process.env itself.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 1,
+    "mayDependOn": [
+      "@ictt-sentinel/domain"
+    ]
+  }
+}

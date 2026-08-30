@@ -1,0 +1,51 @@
+# Build context minimization. Anything not needed to build must stay out.
+
+# Secrets — asla image context'ine girmez
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_ed25519
+secrets/
+credentials.json
+
+# Claude Code kişisel/agent config
+.claude/settings.local.json
+.mcp.json
+
+# Araştırma kaynakları
+*.pdf
+
+# VCS ve CI
+.git/
+.github/
+
+# Bağımlılık ve build çıktıları
+node_modules/
+dist/
+build/
+coverage/
+.pnpm-store/
+*.tsbuildinfo
+
+# Veritabanı verisi ve evidence çıktıları
+infra/postgres/data/
+*.sqlite
+*.sqlite3
+*.dump
+evidence-out/
+*.evidence.json
+
+# OS / editor / geçici
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+tmp/
+.cache/

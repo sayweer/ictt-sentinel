@@ -1,0 +1,29 @@
+{
+  "name": "@ictt-sentinel/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator CLI: init, discover, doctor, check, replay, run, evidence.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 3,
+    "mayDependOn": [
+      "@ictt-sentinel/domain",
+      "@ictt-sentinel/config",
+      "@ictt-sentinel/invariant-core",
+      "@ictt-sentinel/state-machine",
+      "@ictt-sentinel/evidence",
+      "@ictt-sentinel/rpc-quorum",
+      "@ictt-sentinel/ictt-adapters",
+      "@ictt-sentinel/replay",
+      "@ictt-sentinel/storage-postgres",
+      "@ictt-sentinel/testkit"
+    ]
+  },
+  "bin": {
+    "ictt-sentinel": "./src/index.ts"
+  }
+}

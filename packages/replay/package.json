@@ -1,0 +1,22 @@
+{
+  "name": "@ictt-sentinel/replay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reorg-aware log replay and checkpointing.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 2,
+    "mayDependOn": [
+      "@ictt-sentinel/domain",
+      "@ictt-sentinel/config",
+      "@ictt-sentinel/state-machine",
+      "@ictt-sentinel/rpc-quorum",
+      "@ictt-sentinel/ictt-adapters",
+      "@ictt-sentinel/storage-postgres"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@ictt-sentinel/ictt-adapters",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Version-pinned ICTT/Teleporter contract read adapters.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 2,
+    "mayDependOn": [
+      "@ictt-sentinel/domain",
+      "@ictt-sentinel/config",
+      "@ictt-sentinel/rpc-quorum"
+    ]
+  }
+}

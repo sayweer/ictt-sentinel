@@ -1,0 +1,16 @@
+{
+  "name": "ictt-sentinel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Keyless, read-only assurance scaffold for Avalanche ICM/ICTT deployments. No product behaviour yet.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=24.20.0 <25",
+    "pnpm": ">=11.10.0 <12"
+  },
+  "scripts": {
+    "verify:config": "node scripts/verify-config.mjs"
+  }
+}

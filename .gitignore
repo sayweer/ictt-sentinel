@@ -1,0 +1,55 @@
+# Araştırma kaynakları — repository'e ve GitHub'a gitmez (kullanıcı talebi)
+*.pdf
+PDF document.pdf
+
+# Secrets — asla commit edilmez
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node / pnpm
+node_modules/
+dist/
+build/
+coverage/
+.pnpm-store/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local runtime artefaktları
+*.log
+tmp/
+.cache/
+
+# Ek credential biçimleri
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_ed25519
+secrets/
+credentials.json
+
+# Claude Code — kişisel override ve MCP config repo'ya girmez
+.claude/settings.local.json
+.mcp.json
+
+# Veritabanı verisi ve evidence çıktıları
+infra/postgres/data/
+*.sqlite
+*.sqlite3
+*.dump
+evidence-out/
+*.evidence.json
+
+# Test/coverage çıktıları
+.nyc_output/
+test-results/
+playwright-report/

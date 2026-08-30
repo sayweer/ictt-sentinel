@@ -1,0 +1,22 @@
+{
+  "name": "@ictt-sentinel/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hosted evidence/control API.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "ictt-sentinel": {
+    "layer": 3,
+    "mayDependOn": [
+      "@ictt-sentinel/domain",
+      "@ictt-sentinel/config",
+      "@ictt-sentinel/invariant-core",
+      "@ictt-sentinel/evidence",
+      "@ictt-sentinel/storage-postgres",
+      "@ictt-sentinel/alerts"
+    ]
+  }
+}
