@@ -1,6 +1,7 @@
 # Veri Modeli
 
-**Tarih kesimi:** 2026-08-30 · **Durum:** tasarım (şema kodu yazılmadı)
+**Tarih kesimi:** 2026-08-31 · **Durum:** manifest/policy şeması Milestone 03'te uygulandı
+(`packages/config`); ledger ve evidence şemaları hâlâ tasarım aşamasında.
 
 ---
 
@@ -72,42 +73,58 @@ Fingerprint bilinmiyorsa evaluation `UNKNOWN` üretir ve bunu `assumptions` alan
 Manifest **beklenen topolojiyi** tanımlar, **secret adını değerinden ayırır** ve değişiklikleri
 code review / audit trail'e sokar.
 
+Şema Milestone 03'te uygulandı: `packages/config/src/schema/manifest.ts`.
+Çalışan tam örnek: **`config/deployments/example.ictt.yml`** (tek kaynak-of-truth).
+Aşağıda yalnız yapının iskeleti verilmiştir.
+
 ```yaml
 apiVersion: sentinel.ictt/v1alpha1
 kind: ICTTDeployment
 metadata:
   name: acme-usdc
+  operator: "..."
 spec:
-  tokenMode: canonical-erc20          # canonical-erc20 | native | custom
+  assuranceMode: ACCEPTED_STATE_ASSURANCE   # bağımsız BLS/predicate iddiası YOK
+  asset:                                    # `token` DEĞİL — o ad credential taraması tarafından yasak
+    mode: canonical-erc20                   # canonical-erc20 | native
+    homeDecimals: 6
   home:
-    blockchainId: "..."               # Avalanche ICM kimliği
-    evmChainId: 43114                 # EVM chainId — AYRI alan
-    rpcEnv: HOME_RPC_URL              # env ADI; değer burada DEĞİL
-    tokenAddress: "0x..."
-    tokenHomeAddress: "0x..."
-    deploymentBlock: 123456
-  remotes:
-    - name: alpha-l1
-      blockchainId: "..."
-      evmChainId: 12345
-      rpcEnv: REMOTE_ALPHA_RPC_URL
-      tokenRemoteAddress: "0x..."
-      expectedDecimals: 6
-  teleporter:
-    registryAddress: "0x..."
-    minimumVersion: 2                 # registry protocol version
-    allowedSourceFamilies: ["teleporter"]   # teleporterV2 KASITLI olarak yok
-  attestation:
-    allowedImplementationHashes: ["0x..."]
-    nativeMinterAllowlist: []
-    adminAuthority: "0x..."           # beklenen multisig/policy adresi
-  policy:
-    finality: accepted-quorum         # ADLANDIRILMIŞ semantik
-    rpcWitnessesRequired: 2           # distinct providerGroup sayısı
-    maxRpcLagSeconds: 60
-    maxExecutionDelaySeconds: 300
-    onUnknownFingerprint: fail-closed
+    chain:
+      blockchainId: "0x<64hex>"             # Avalanche ICM kimliği
+      evmChainId: 43114                     # EVM chainId — AYRI alan
+      networkId: 1
+      subnetId: "0x<64hex>"
+      genesisHash: "0x<64hex>"              # veya trustedCheckpoint
+      finality:
+        mode: accepted-quorum               # ADLANDIRILMIŞ semantik
+        acceptedStateQueries: accepted-only
+        maxLagSeconds: 60
+      endpoints:                            # URL YOK, yalnız secretRef
+        - id: home-primary
+          trustDomain: provider-alpha       # quorum bunu sayar, URL'i değil
+          providerGroup: provider-alpha-prod
+          role: primary
+          secretRef: ICTT_SENTINEL_HOME_RPC_PRIMARY
+          archiveDepth: pruned
+      quorum:
+        independentTrustDomains: 2
+    tokenHome: { role, address, tokenAddress, deploymentBlock, proxy, fingerprint }
+    teleporter: { family: teleporter, registryAddress, messengerAddress, minimumProtocolVersion }
+  remotes: [ ... ]                          # aynı chain/endpoint/quorum yapısı
+  census:
+    scope: registered-remotes-of-this-token-home   # "tüm Avalanche" iddiası YOK
+    source: RemoteRegistered
+    fromBlock: "38000000"                   # TokenHome deployment block'undan
+    completeness: complete-from-deployment-block
+  baseline:
+    state: approved                         # approved | candidate — ayrı tipler
+    approval: { approvedBy, approvedAt, reviewedDigest }
+    fieldPolicies:                          # LOCKED | APPROVED_CHANGE | OBSERVE_ONLY
+      home.tokenHome.address: LOCKED
 ```
+
+**Alan adı notu:** `rpcEnv` yerine **`secretRef`** kullanılır ve endpoint'in içinde durur;
+böylece her endpoint kendi `trustDomain` bağımsızlık iddiasını taşır.
 
 ### 3.1 `confirmations` alanı KASITLI OLARAK YOKTUR
 
@@ -119,17 +136,20 @@ sayılamaz — kabul (acceptance) zaten finaldir; C-Chain `allow-unfinalized-que
 `false`'tur ve `latest` kabul edilmiş bloğu döndürür. Bir derinlik sayısı buraya yazılırsa,
 gerçekte hiçbir güvence sağlamayan bir sayıya güvence anlamı yüklenmiş olur.
 
-Yerine: `policy.finality` **adlandırılmış semantik** alır (`accepted-quorum`; ACP-194 sonrası
-`settled-quorum` eklenecektir), `rpcWitnessesRequired` bağımsız witness eşiğini,
-`maxRpcLagSeconds` tazeliği taşır. Şema `confirmations` alanını **reddetmelidir** (bilinmeyen
-alan hatası), sessizce yok saymamalıdır.
+Yerine: `chain.finality.mode` **adlandırılmış semantik** alır (`accepted-quorum`; ACP-194
+sonrası `settled-quorum`), `chain.quorum.independentTrustDomains` bağımsız witness eşiğini,
+`chain.finality.maxLagSeconds` tazeliği taşır. Şema `confirmations` alanını **reddeder**
+(bilinmeyen alan hatası), sessizce yok saymaz — bu davranış testle doğrulanmıştır.
 
-### 3.2 `allowedSourceFamilies`
+`settled-quorum` şemada tanımlıdır fakat **seçilmesi reddedilir**: ACP-194 henüz aktif değil
+ve onu bugünün semantiği gibi sessizce işlemek yanlış olurdu.
 
-Bu alan, hangi messaging kaynak ailesinin kabul edildiğini **açıkça** beyan eder.
-`teleporterV2` varsayılan olarak **yoktur** ve eklenemez — şema onu reddeder
-(`UNSUPPORTED -> UNKNOWN`). Registry'den okunan `minimumVersion` değeri bu alanı
-**etkilemez**; ikisi ayrı uzaylardır (bkz. `PROTOCOL_SOURCE_LOCK.md` §4).
+### 3.2 Messaging kaynak ailesi
+
+`teleporter.family` alanı yalnız `teleporter` değerini kabul eder; şema
+`teleporterV2`'yi **reddeder** (`UNSUPPORTED -> UNKNOWN`). Registry'den okunan
+`minimumProtocolVersion` bu alanı **etkilemez**; ikisi ayrı uzaylardır
+(bkz. `PROTOCOL_SOURCE_LOCK.md` §4).
 
 ### 3.3 Baseline meşruiyeti
 

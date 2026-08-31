@@ -1,0 +1,86 @@
+# Default sentinel policy.
+#
+# Policy is the operational half of the contract: how fresh evidence must be,
+# how many independent witnesses count, and what happens when an answer cannot
+# be established. Its digest is bound into every evaluation alongside the
+# manifest digest.
+
+apiVersion: sentinel.ictt/v1alpha1
+kind: SentinelPolicy
+
+metadata:
+  name: default
+  description: Conservative defaults; every unresolved question lands on UNKNOWN.
+
+spec:
+  # Most severe first. A required check that lands on UNKNOWN outranks WARN,
+  # because "we could not establish this" is worse than "something looks odd".
+  # UNKNOWN is never rendered as OK, healthy or green
+  # (docs/adr/0003-fail-closed-verdicts.md).
+  verdictPrecedence: [CRITICAL, UNKNOWN, WARN, OK]
+
+  evidence:
+    # Past this age the reading is stale and the verdict degrades to UNKNOWN
+    # rather than being reported as current.
+    maxAgeSeconds: 300
+    # Hard expiry: beyond this a cached evaluation may not be reported at all.
+    expiresAfterSeconds: 86400
+    # Same pinned blocks and same rule version must yield the same digest.
+    requireReproducibleDigest: true
+
+  quorum:
+    # Counted over distinct trustDomains, never over URLs. Two hostnames in
+    # front of one upstream are one witness (docs/INVARIANTS.md 9).
+    minIndependentTrustDomains: 2
+    # Witnesses disagreeing on a pinned block hash is a data fault. There is no
+    # majority rule here: picking a winner would manufacture certainty.
+    onDisagreement: UNKNOWN
+    onInsufficientWitnesses: UNKNOWN
+
+  dataPath:
+    requestTimeoutMs: 10000
+    maxRetries: 2
+    retryBackoffMs: 500
+    # Bounded window so no provider is asked for an unbounded log range.
+    maxLogRangeBlocks: 2000
+    # Comparative reads pin an explicit block number and hash. Falling back to
+    # `latest` would compare two chains at two different moments, which is the
+    # failure this product exists to catch.
+    allowLatestFallback: false
+    # A webhook is a latency hint only; the verdict comes from replay.
+    webhookMayProduceVerdict: false
+
+  tokenModes:
+    canonicalErc20:
+      reconciliation: deterministic
+      # A gap in a quiet section may be dust or a pending message; it is not
+      # automatically an economic breach.
+      onQuietSectionMismatch: WARN
+      # Remote supply above home accounting at a causally settled snapshot is.
+      onCausalBreach: CRITICAL
+
+    native:
+      # The contract's reported supply is an accounting reconstruction that
+      # includes an initial reserve circulating before it is backed. Exact
+      # circulating-supply equality is not claimable (docs/INVARIANTS.md 7).
+      claim: reported-supply-upper-bound
+      allowedAssessments: [sufficient, indeterminate, unknown]
+      # Above the bound is not proof of a shortfall: unknown burn paths may have
+      # reduced real supply. It needs reconciliation, not a red verdict.
+      onBoundExceeded: indeterminate
+      allowExactSupplyClaim: false
+
+    unsupported:
+      # Rebase, fee-on-transfer, custom remotes, unrecognised forks and the
+      # experimental teleporterV2 source family.
+      behaviour: UNKNOWN
+      failClosed: true
+
+  configDrift:
+    LOCKED: CRITICAL
+    APPROVED_CHANGE: WARN
+    OBSERVE_ONLY: WARN
+    # A remote that was discovered but never approved is candidate drift. It is
+    # reported, and it is not trusted.
+    candidateRemote: WARN
+    unknownFingerprint: UNKNOWN

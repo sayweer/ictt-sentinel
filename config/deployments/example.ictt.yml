@@ -1,0 +1,197 @@
+# Example ICTT deployment manifest.
+#
+# The manifest is the approved statement of what a deployment is supposed to be.
+# It is version controlled and reviewed, because drift detection is only
+# meaningful against a baseline a human signed off.
+#
+# It contains NO secret values. Endpoints name an environment variable
+# (secretRef); the address itself lives in .env.local.
+#
+# Addresses and hashes below are illustrative and do not identify a real
+# deployment.
+
+apiVersion: sentinel.ictt/v1alpha1
+kind: ICTTDeployment
+
+metadata:
+  name: example-usdc
+  operator: Example Operator Ltd
+  description: Canonical ERC20 route from the home chain to one remote L1.
+
+spec:
+  # V0 scope: the accepted state of both chains, agreed by an independent
+  # provider quorum. This does NOT independently re-verify ICM BLS aggregate
+  # signatures or the Warp predicate against a historical P-Chain validator set
+  # (docs/adr/0004-icm-assurance-scope.md).
+  assuranceMode: ACCEPTED_STATE_ASSURANCE
+
+  # Named `asset` rather than `token`: the inline-secret scan bans a field
+  # called `token`, because that word also means a credential.
+  asset:
+    mode: canonical-erc20
+    homeDecimals: 6
+
+  home:
+    name: home-c-chain
+    chain:
+      # Avalanche ICM identity. A different field, and a different value, from
+      # evmChainId. Swapping them is a configuration error the schema catches.
+      blockchainId: '0x1111111111111111111111111111111111111111111111111111111111111111'
+      evmChainId: 43114
+      networkId: 1
+      subnetId: '0x2222222222222222222222222222222222222222222222222222222222222222'
+      genesisHash: '0x3333333333333333333333333333333333333333333333333333333333333333'
+      finality:
+        # Named semantic, never a confirmation count. Avalanche acceptance is
+        # final, so a depth threshold would attach a guarantee to a number that
+        # does not carry one.
+        mode: accepted-quorum
+        # C-Chain defaults allow-unfinalized-queries to false, so `latest` is
+        # already the accepted block. An endpoint configured otherwise cannot
+        # back an accepted-state claim.
+        acceptedStateQueries: accepted-only
+        maxLagSeconds: 60
+      endpoints:
+        # Quorum counts distinct trustDomain values. Two URLs behind one
+        # upstream are one witness, so the secondary must be a genuinely
+        # different operator for the quorum below to hold.
+        - id: home-primary
+          trustDomain: provider-alpha
+          providerGroup: provider-alpha-prod
+          role: primary
+          secretRef: ICTT_SENTINEL_HOME_RPC_PRIMARY
+          archiveDepth: pruned
+        - id: home-secondary
+          trustDomain: provider-beta
+          providerGroup: provider-beta-prod
+          role: secondary
+          secretRef: ICTT_SENTINEL_HOME_RPC_SECONDARY
+          archiveDepth: pruned
+        - id: home-archive
+          trustDomain: provider-gamma
+          providerGroup: provider-gamma-archive
+          role: archive
+          secretRef: ICTT_SENTINEL_HOME_RPC_ARCHIVE
+          archiveDepth: full
+      quorum:
+        independentTrustDomains: 2
+
+    tokenHome:
+      role: erc20-token-home
+      address: '0x4444444444444444444444444444444444444444'
+      tokenAddress: '0x5555555555555555555555555555555555555555'
+      deploymentBlock: '38000000'
+      proxy:
+        kind: none
+      fingerprint:
+        runtimeCodeHash: '0x6666666666666666666666666666666666666666666666666666666666666666'
+        allowedImplementationHashes: []
+        sourceRef:
+          repository: ava-labs/icm-services
+          commitSha: 8fef6ef73767f4497a72d8348a0774a262e0c535
+          path: icm-contracts/avalanche/ictt/TokenHome/ERC20TokenHome.sol
+        onUnknownFingerprint: fail-closed
+
+    teleporter:
+      # `teleporterV2` is a separate, unaudited source tree and is not accepted.
+      # A registry protocol version says nothing about which family is deployed
+      # (docs/PROTOCOL_SOURCE_LOCK.md 4).
+      family: teleporter
+      registryAddress: '0x7777777777777777777777777777777777777777'
+      messengerAddress: '0x8888888888888888888888888888888888888888'
+      minimumProtocolVersion: 1
+
+  remotes:
+    - name: alpha-l1
+      chain:
+        blockchainId: '0x9999999999999999999999999999999999999999999999999999999999999999'
+        evmChainId: 55555
+        networkId: 1
+        subnetId: '0xaaaa0000000000000000000000000000000000000000000000000000000000aa'
+        genesisHash: '0xbbbb0000000000000000000000000000000000000000000000000000000000bb'
+        finality:
+          mode: accepted-quorum
+          acceptedStateQueries: accepted-only
+          maxLagSeconds: 60
+        endpoints:
+          - id: alpha-primary
+            trustDomain: operator-self-hosted
+            providerGroup: operator-node-a
+            role: primary
+            secretRef: ICTT_SENTINEL_REMOTE_ALPHA_RPC_PRIMARY
+            archiveDepth: full
+          - id: alpha-secondary
+            trustDomain: provider-beta
+            providerGroup: provider-beta-prod
+            role: secondary
+            secretRef: ICTT_SENTINEL_REMOTE_ALPHA_RPC_SECONDARY
+            archiveDepth: pruned
+        quorum:
+          independentTrustDomains: 2
+
+      tokenRemote:
+        role: erc20-token-remote
+        address: '0xcccccccccccccccccccccccccccccccccccccccc'
+        deploymentBlock: '120000'
+        expectedDecimals: 6
+        proxy:
+          kind: erc1967
+          implementation: '0xdddddddddddddddddddddddddddddddddddddddd'
+          admin: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        fingerprint:
+          runtimeCodeHash: '0xffff000000000000000000000000000000000000000000000000000000000fff'
+          allowedImplementationHashes:
+            - '0x1010101010101010101010101010101010101010101010101010101010101010'
+          sourceRef:
+            repository: ava-labs/icm-services
+            commitSha: 8fef6ef73767f4497a72d8348a0774a262e0c535
+            path: icm-contracts/avalanche/ictt/TokenRemote/ERC20TokenRemoteUpgradeable.sol
+          onUnknownFingerprint: fail-closed
+
+      teleporter:
+        family: teleporter
+        registryAddress: '0x2020202020202020202020202020202020202020'
+        messengerAddress: '0x3030303030303030303030303030303030303030'
+        minimumProtocolVersion: 1
+
+  # Census scope is bounded to THIS TokenHome's own RemoteRegistered history,
+  # from its deployment block. The product does not claim to enumerate every
+  # ICTT deployment on Avalanche, and must not be read as doing so.
+  census:
+    scope: registered-remotes-of-this-token-home
+    source: RemoteRegistered
+    fromBlock: '38000000'
+    completeness: complete-from-deployment-block
+
+  baseline:
+    # `candidate` would mean this came from discovery and nobody has reviewed
+    # it. Exact replay stays closed until an operator approves.
+    state: approved
+    approval:
+      approvedBy: Example Operator Security Review
+      approvedAt: '2026-08-31T00:00:00Z'
+      # Digest of the candidate document that was actually read at review time.
+      reviewedDigest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      note: Initial baseline approved after the launch checklist.
+
+    # How each field is treated when observation and manifest disagree.
+    #   LOCKED          - any drift is a violation
+    #   APPROVED_CHANGE - drift allowed only with a recorded approval
+    #   OBSERVE_ONLY    - drift reported, never a violation
+    fieldPolicies:
+      home.chain.blockchainId: LOCKED
+      home.chain.evmChainId: LOCKED
+      home.chain.genesisHash: LOCKED
+      home.tokenHome.address: LOCKED
+      home.tokenHome.tokenAddress: LOCKED
+      home.tokenHome.proxy.implementation: LOCKED
+      home.tokenHome.fingerprint.runtimeCodeHash: APPROVED_CHANGE
+      home.teleporter.registryAddress: LOCKED
+      home.teleporter.messengerAddress: APPROVED_CHANGE
+      home.teleporter.minimumProtocolVersion: APPROVED_CHANGE
+      remotes[].chain.blockchainId: LOCKED
+      remotes[].tokenRemote.address: LOCKED
+      remotes[].tokenRemote.expectedDecimals: LOCKED
+      remotes[].tokenRemote.proxy.implementation: APPROVED_CHANGE
+      remotes[].tokenRemote.fingerprint.runtimeCodeHash: APPROVED_CHANGE
+      census.completeness: OBSERVE_ONLY

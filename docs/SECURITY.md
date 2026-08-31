@@ -54,14 +54,23 @@ credential'ı üzerinden dolaylı olarak deler ve SSRF benzeri bir pivot noktas�
 
 Beklenen secret'lar (yalnız okuma erişimi):
 
+Tam liste ve açıklamaları: **`.env.example`** (tek kaynak-of-truth).
+
 ```
-HOME_RPC_URL
-REMOTE_<NAME>_RPC_URL
-GLACIER_API_KEY               # opsiyonel, yalnız daha yüksek limit
-WEBHOOK_SHARED_SECRET
-SLACK_WEBHOOK_URL
-ICTT_SENTINEL_CONTROL_PLANE_TOKEN
+ICTT_SENTINEL_HOME_RPC_PRIMARY / _SECONDARY / _ARCHIVE
+ICTT_SENTINEL_REMOTE_<NAME>_RPC_PRIMARY / _SECONDARY / _ARCHIVE
+ICTT_SENTINEL_GLACIER_API_KEY          # opsiyonel, yalnız daha yüksek limit
+ICTT_SENTINEL_WEBHOOK_SHARED_SECRET
+ICTT_SENTINEL_SLACK_WEBHOOK_URL
+ICTT_SENTINEL_PAGERDUTY_ROUTING_KEY
+ICTT_SENTINEL_CONTROL_PLANE_URL / _TOKEN
+POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD / DATABASE_URL
 ```
+
+Manifest'in `secretRef` alanı **yalnız `ICTT_SENTINEL_` önekli** adları çözebilir;
+bu, bir manifest'in resolver'ı rastgele bir process değişkenine yönlendirmesini engeller.
+`PRIVATE_KEY`, `SIGNER_KEY`, `MNEMONIC`, `WALLET`, `KEYSTORE` parçası taşıyan hiçbir ad —
+önek doğru olsa bile — çözülmez.
 
 ## 4. Container ve dağıtım
 

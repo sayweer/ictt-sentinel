@@ -30,7 +30,9 @@
     "test": "vitest run --root ../.."
   },
   "dependencies": {
-    "@ictt-sentinel/domain": "workspace:*"
+    "@ictt-sentinel/domain": "workspace:*",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

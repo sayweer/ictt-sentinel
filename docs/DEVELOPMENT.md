@@ -1,7 +1,10 @@
 # Geliştirme Rehberi
 
-**Durum:** scaffold. Bağımlılık yoktur; lint/typecheck/test/build kapıları **Milestone 02**'de gelir.
-Bugün çalışan tek kapı `pnpm run verify:config`'tir.
+**Durum:** technical preview. Toolchain ve kalite kapıları kurulu (Milestone 02); config
+katmanı, deployment manifesti ve secret modeli uygulandı (Milestone 03). Ürün davranışı
+(RPC adapter, invariant motoru, ledger) henüz **yok**.
+
+Tam kapı: `pnpm run verify`.
 
 ---
 
@@ -61,13 +64,15 @@ nvm use
 # 2. pnpm
 corepack enable
 
-# 3. Config kapısı (bağımlılık gerektirmez)
-pnpm run verify:config
+# 3. Bağımlılıklar (lifecycle script'leri kapalı)
+pnpm install --frozen-lockfile --ignore-scripts
+
+# 4. Tüm kapılar
+pnpm run verify
 ```
 
-Beklenen çıktı: `verify:config OK - 15 workspace member(s), 0 failures`.
-
-> `pnpm install` **bu milestone'da gerekli değildir** — hiçbir runtime bağımlılığı yoktur.
+> `pnpm install --frozen-lockfile` gerekir: `packages/config` iki runtime bağımlılığı taşır
+> (`yaml`, `zod` — ikisi de sıfır transitive dep ve install lifecycle script'i yok).
 
 ### Ortam dosyası — kullanıcı yönetir
 
@@ -75,7 +80,36 @@ Gerçek `.env` dosyası **repository'de yoktur ve olmayacaktır**. Kendi ortam d
 oluşturur ve yönetirsin. `.gitignore` ve `.dockerignore` gerçek env dosyalarını dışlar;
 `.claude/settings.json` Claude'un onları okumasını engeller.
 
-`.env.example` (Milestone 03'te gelecek) yalnız **anahtar adlarını** taşır, değer taşımaz.
+```bash
+cp .env.example .env.local
+# POSTGRES_PASSWORD üret:
+openssl rand -base64 32
+```
+
+`.env.example` yalnız **anahtar adlarını** taşır; her secret alanı boştur ve hiçbir
+varsayılan parola veya örnek token içermez.
+
+**Manifest secret taşımaz.** Deployment manifesti (`config/deployments/*.ictt.yml`) yalnız
+`secretRef` ile bir **değişken adı** işaret eder; URL veya token değeri `.env.local`'dedir.
+Şema, bir manifest'te `url`, `token`, `password`, `apiKey`, `privateKey`, `signer`, `wallet`
+veya `mnemonic` alanı görürse **hata verir**.
+
+`secretRef` yalnız **`ICTT_SENTINEL_`** önekli adları çözebilir. `PRIVATE_KEY`, `SIGNER_KEY`,
+`MNEMONIC`, `WALLET` veya `KEYSTORE` parçası taşıyan hiçbir ad — önek doğru olsa bile —
+çözülmez ve süreç bu değişkenler ortamda tanımlıysa **başlamayı reddeder**.
+
+### Yerel PostgreSQL
+
+```bash
+docker compose --env-file ../../.env.local -f infra/postgres/docker-compose.yml up -d
+```
+
+- Yalnız `127.0.0.1:5432`'ye bağlanır; routable arayüzde yayınlanmaz.
+- `POSTGRES_PASSWORD` **zorunludur**; boşsa compose başlamaz (güvensiz fallback yok).
+- `trust` auth, privileged mod, host network ve Docker socket mount **yoktur**.
+- Image tag değil **digest** ile pinlidir.
+
+Production uygulama container'ı bu aşamanın kapsamı **değildir**.
 
 Bu üründe **asla bulunmaması gereken** değişkenler:
 
