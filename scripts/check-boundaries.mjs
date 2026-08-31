@@ -184,6 +184,87 @@ for (const [name, info] of members) {
   }
 }
 
+// --- forbidden RPC and signing surface ------------------------------------
+// A read-only product must not be able to write to a chain. These are checked
+// repository-wide, not just in the RPC package, because the point is that the
+// capability exists nowhere (docs/SECURITY.md section 2).
+const FORBIDDEN_RPC = [
+  { rx: /\beth_sendRawTransaction\b/, what: 'eth_sendRawTransaction' },
+  { rx: /\beth_sendTransaction\b/, what: 'eth_sendTransaction' },
+  { rx: /\beth_signTransaction\b/, what: 'eth_signTransaction' },
+  { rx: /\bpersonal_[a-zA-Z]/, what: 'a personal_ method' },
+  { rx: /\bwallet_[a-zA-Z]/, what: 'a wallet_ method' },
+  { rx: /\badmin_[a-zA-Z]/, what: 'an admin_ method' },
+  { rx: /\bengine_[a-zA-Z]/, what: 'an engine_ method' },
+];
+const FORBIDDEN_SIGNING = [
+  {
+    rx: /from\s+['"](?:viem\/accounts|ethers\/wallet|@ethersproject\/wallet)['"]/,
+    what: 'a wallet module import',
+  },
+  { rx: /\bcreateWalletClient\b/, what: 'createWalletClient' },
+  { rx: /\bnew\s+Wallet\b/, what: 'new Wallet' },
+  { rx: /\bprivateKeyToAccount\b/, what: 'privateKeyToAccount' },
+  { rx: /\bsignTypedData\b/, what: 'signTypedData' },
+];
+
+// Files whose job is to name these strings in order to forbid them.
+const SURFACE_EXEMPT = new Set([
+  'packages/rpc-quorum/src/methods.ts',
+  'packages/rpc-quorum/test/query-only.test.ts',
+  'scripts/check-boundaries.mjs',
+  'scripts/check-secrets.mjs',
+  '.claude/commands/safety-audit.md',
+]);
+
+function scanSurface(dir) {
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry === 'dist' || entry === '.git' || entry === '.tooling')
+      continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      scanSurface(full);
+      continue;
+    }
+    if (!/\.(ts|mts|mjs|js)$/.test(entry)) continue;
+    const rel = relative(ROOT, full);
+    if (SURFACE_EXEMPT.has(rel)) continue;
+    const text = readFileSync(full, 'utf8');
+    for (const { rx, what } of FORBIDDEN_RPC) {
+      if (rx.test(text))
+        fail('write-surface', `${rel} references ${what}; this product never writes to a chain`);
+    }
+    for (const { rx, what } of FORBIDDEN_SIGNING) {
+      if (rx.test(text))
+        fail('signing-surface', `${rel} references ${what}; this product holds no keys`);
+    }
+  }
+}
+for (const base of ['apps', 'packages', 'scripts', 'tests']) {
+  try {
+    scanSurface(join(ROOT, base));
+  } catch {
+    // directory absent at this stage
+  }
+}
+
+// Self-test: a broken pattern must not silently pass everything.
+const SURFACE_CASES = [
+  ['const m = "eth_sendRawTransaction";', true],
+  ['import { privateKeyToAccount } from "viem/accounts";', true],
+  ['const c = createWalletClient({});', true],
+  ['const m = "eth_getLogs";', false],
+  ['const c = createPublicClient({});', false],
+];
+for (const [sample, shouldFlag] of SURFACE_CASES) {
+  const flagged =
+    FORBIDDEN_RPC.some(({ rx }) => rx.test(sample)) ||
+    FORBIDDEN_SIGNING.some(({ rx }) => rx.test(sample));
+  if (flagged !== shouldFlag) {
+    fail('surface-selftest', `"${sample}" expected flagged=${shouldFlag}, got ${flagged}`);
+  }
+}
+
 // --- layer direction and cycles ------------------------------------------
 for (const [name, info] of members) {
   for (const dep of actualEdges.get(name) ?? []) {

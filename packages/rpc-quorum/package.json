@@ -31,8 +31,9 @@
     "test": "vitest run --root ../.."
   },
   "dependencies": {
+    "@ictt-sentinel/config": "workspace:*",
     "@ictt-sentinel/domain": "workspace:*",
-    "@ictt-sentinel/config": "workspace:*"
+    "@noble/hashes": "2.3.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

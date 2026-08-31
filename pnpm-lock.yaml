@@ -366,6 +366,9 @@ importers:
       '@ictt-sentinel/domain':
         specifier: workspace:*
         version: link:../domain
+      '@noble/hashes':
+        specifier: 2.3.0
+        version: 2.3.0
     devDependencies:
       '@types/node':
         specifier: 24.13.3
