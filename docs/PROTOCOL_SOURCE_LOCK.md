@@ -1,6 +1,6 @@
 # Protokol Kaynak Kilidi
 
-**Tarih kesimi:** 2026-08-30 · **reviewedAt:** 2026-08-30
+**Tarih kesimi:** 2026-08-31 · **reviewedAt:** 2026-08-31 (Milestone 04)
 
 Bu dosya, runtime semantiğinin **hangi değişmez kaynağa** dayandığını kilitler.
 Moving `main` / `latest` / `HEAD` ref'i **canonical source olarak kullanılmaz.**
@@ -69,19 +69,28 @@ Ayrıca: `WrappedNativeToken.sol`, `interfaces/`, `mocks/`, `tests/`.
 | `icm-contracts/avalanche/teleporter/` | `TeleporterMessenger` + `registry/` | **Destekleniyor** (P0) |
 | `icm-contracts/avalanche/teleporterV2/` | **Yalnız `WarpAdapter.sol`** | **`UNSUPPORTED -> UNKNOWN`** |
 
-## 3. Audit provenance
+## 3. Audit provenance — denetlenen commit'e bağlı
 
-`icm-contracts/audits/` içeriği (`VERIFIED`):
+Upstream `audits/README.md` her audit için **exact commit** veriyor. Kısa SHA'lar Milestone 04'te
+tam SHA'ya çözüldü (`VERIFIED`):
 
-| Audit | Tarih | Denetçi | Kapsam |
+| Audit | Denetlenen commit | Depo | Kapsam |
 |---|---|---|---|
-| ICTT Audit | 2024-06-26 | OpenZeppelin | ICTT |
-| Teleporter Audit | 2023-11-16 | OpenZeppelin | Teleporter |
-| Teleporter Upgradeable Audit | 2024-01-10 | Louis | Teleporter upgradeable |
-| Validator Manager Incremental Audit | 2025-05-07 | OpenZeppelin | Validator manager |
+| Teleporter (OpenZeppelin, 2023-11-16) | `6ba46565a72a7dabb159d74963d7abc525fb6486` | `icm-contracts` (**arşiv**) | `contracts/teleporter/` üst düzey |
+| Teleporter Upgradeable (Louis, 2024-01-10) | `9fcdf42da263f3e3d3a60ccf1272d9394eac06d4` | `icm-contracts` (**arşiv**) | `registry` + `utilities`'in bir kısmı |
+| ICTT (OpenZeppelin, 2024-06-26) | `9e03a1e5177e4ad8d1edcedf529e71bb2f4a8d99` | `icm-contracts` (**arşiv**) | `contracts/ictt/` (mocks hariç) |
+| Validator Manager (OpenZeppelin, 2025-05-07) | — | `icm-contracts` (**arşiv**) | Bu ürünün kapsamı dışında |
 
-> **`teleporterV2` / `WarpAdapter.sol` için audit YOKTUR.** Bu, `UNSUPPORTED` kararının
-> birincil gerekçesidir.
+> **Pinlediğimiz commit (`8fef6ef7…`) hiçbir audit kapsamında DEĞİLDİR.**
+> Denetlenen commit'lerin hepsi arşiv depoda ve farklı yol düzeninde
+> (`contracts/ictt/` → `icm-contracts/avalanche/ictt/`). Upstream README'nin kendisi uyarır:
+> *"Please exercise caution when using code newer than the audited commit."*
+>
+> Bu nedenle `auditCoverageFor()` her descriptor için **`audited-at-a-different-commit`**
+> döndürür; `covered-at-pinned-commit` iddiası testle engellenmiştir.
+
+> **`teleporterV2` / `WarpAdapter.sol` için audit HİÇ YOKTUR** (`never-audited`).
+> Bu, `UNSUPPORTED` kararının birincil gerekçesidir.
 
 ## 4. Registry version ≠ source family — kesin ayrım
 
@@ -172,14 +181,35 @@ Aşağıdakiler **tahmin edilmedi**. Source-lock uygulama milestone'una devredil
 
 | ID | Eksik | Neden bu milestone'da yapılamadı |
 |---|---|---|
-| `T01` | Her sözleşme için **ABI artifact hash** | Yerel build gerekir; dependency kurmak bu milestone'da kapsam dışı |
-| `T02` | **Compiler sürümü / build provenance** (solc version, optimizer, metadata) | `foundry.toml` okunmadı; reproducible build milestone'una ait |
-| `T03` | **Supported bytecode fingerprint** kümesi | Derleme ve deployed-bytecode çıkarımı gerekir |
-| `T04` | `reportBurnedTxFees` mekanizması ile `BURNED_TX_FEES_ADDRESS.balance` arasındaki tam ilişki | Hedefli kaynak okuması gerekiyor; formül tahminle kapatılmayacak (`C02`) |
+| `T01` | Her sözleşme için **ABI artifact hash** | **ÇÖZÜLDÜ (M04)** — resmî Go binding'lerinden canonical ABI hash'i üretildi |
+| `T02` | **Compiler sürümü / build provenance** | **ÇÖZÜLDÜ (M04)** — `foundry.toml`: solc `0.8.30`, `shanghai`, optimizer 200, `bytecode_hash="none"`; submodule pinleri kayıtlı |
+| `T03` | **Supported bytecode fingerprint** kümesi | **KISMEN (M04)** — *creation* bytecode hash'i üretildi; **runtime** hash türetilemez (constructor + immutable), operatör attestation'ına bağlandı |
+| `T04` | `reportBurnedTxFees` ↔ `BURNED_TX_FEES_ADDRESS.balance` ilişkisi | **ÇÖZÜLDÜ (M04)** — ayrı kanal; delta alınır, ödül **yeniden mint edilir** (`_totalMinted` artar), kalan home'a bildirilir |
 | `T05` | `teleporterV2` / `WarpAdapter`'ın herhangi bir canlı ağda deploy edilip edilmediği | Doğrulanamadı → `UNKNOWN` |
 | `T06` | Helicon'un Fuji'de aktive olup olmadığı | Resmî kaynak `unscheduled` diyor; ikincil bloglar 2026-07-28 iddia ediyor → **ÇELİŞKİLİ** |
 | `T07` | Teleporter registry version ↔ implementation fingerprint eşleme tablosu | Registry state okuması gerekir; **çıkarım yapılmayacak** |
 | `T08` | ICTT event/getter yüzeyinin sürüm bazlı tam envanteri | Her `.sol` dosyasının tam okunması gerekir |
+
+## 9.1 Milestone 04'te doğrulanan semantik
+
+| Bulgu | Kanıt (pinned kaynak) |
+|---|---|
+| Canonical **ERC20 remote'un initial reserve imbalance'ı yapısal olarak 0** | `__ERC20TokenRemote_init` → `__TokenRemote_init(settings, 0, tokenDecimals)` |
+| ERC20 remote doğuştan `isCollateralized` | `_isCollateralized = initialReserveImbalance_ == 0` |
+| **Native remote sıfır reserve'i reddeder**, decimals 18 sabit | `require(initialReserveImbalance != 0, ...)`; `__TokenRemote_init(settings, imbalance, 18)` |
+| `_addCollateral` `transferredBalance`'a **dokunmaz** | Fonksiyon gövdesinde `_transferredBalances` 0 kez |
+| `collateralNeeded` +1 yuvarlaması | `if (multiplyOnRemote && imbalance % tokenMultiplier != 0) collateralNeeded += 1` |
+| `remoteTokenDecimals <= 18` zorunlu | `_registerRemote` require |
+
+**Bağlayıcı sonuç:** Canonical ERC20 rotasında `C_r` **yapısal olarak sıfırdır**, dolayısıyla
+`A_r = T_r`. Bu rotaya keyfi bir initial-collateral terimi eklenmez.
+
+### `A03` yerine kesin ifade — native üst sınırı
+
+`totalNativeAssetSupply()` bir üst sınırdır **ancak ve ancak minter münhasırlığı sağlanmışsa**.
+Bilinen iki burn adresi dışına gönderilen coin düşülmez (sınır bu yönde korunur), fakat bu
+sözleşme tek minter değilse gerçek arz raporlanan değeri aşabilir ve **sınır düşer**.
+Doğrudan `CFG-006`'ya bağlıdır.
 
 ## 10. Yenileme protokolü
 

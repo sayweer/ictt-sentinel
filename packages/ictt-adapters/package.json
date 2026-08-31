@@ -32,9 +32,10 @@
     "test": "vitest run --root ../.."
   },
   "dependencies": {
-    "@ictt-sentinel/domain": "workspace:*",
     "@ictt-sentinel/config": "workspace:*",
-    "@ictt-sentinel/rpc-quorum": "workspace:*"
+    "@ictt-sentinel/domain": "workspace:*",
+    "@ictt-sentinel/rpc-quorum": "workspace:*",
+    "@noble/hashes": "2.3.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
