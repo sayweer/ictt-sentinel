@@ -6,7 +6,12 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "//paths": "Mirrors the alias in vitest.config.ts. Files under tests/ are not members of any workspace package, so without this the linter sees @ictt-sentinel/* as `any` and every type-aware rule goes quiet. Build resolution is unaffected: tsconfig.build.json uses project references.",
+    "paths": {
+      "@ictt-sentinel/*": ["./packages/*/src/index.ts", "./apps/*/src/index.ts"]
+    }
   },
   "include": [
     "apps/*/src/**/*.ts",

@@ -21,18 +21,21 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "migrations"
   ],
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --build --force",
     "build": "tsc --build",
     "clean": "tsc --build --clean",
-    "test": "vitest run --root ../.."
+    "test": "vitest run --root ../..",
+    "migrate": "node ./dist/cli.js"
   },
   "dependencies": {
+    "@ictt-sentinel/config": "workspace:*",
     "@ictt-sentinel/domain": "workspace:*",
-    "@ictt-sentinel/config": "workspace:*"
+    "postgres": "3.4.9"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

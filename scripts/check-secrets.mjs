@@ -91,8 +91,7 @@ const POSITIVE = [
   ['github-token', 'ghp_' + 'a'.repeat(36)],
   [
     'slack-webhook',
-    'https://hooks.slack.com/' +
-      'services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+    'https://hooks.slack.com/' + 'services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
   ],
   ['generic-bearer', 'api_key = "' + 'k'.repeat(32) + '"'],
   ['rpc-url-with-key', 'https://mainnet.example.org/v3/' + 'b'.repeat(32)],

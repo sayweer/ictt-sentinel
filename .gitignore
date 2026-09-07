@@ -40,8 +40,14 @@ id_ed25519
 secrets/
 credentials.json
 
-# Claude Code — kişisel override ve MCP config repo'ya girmez
-.claude/settings.local.json
+# Claude Code. Tek istisna `.claude/settings.json`: takım güvenlik ayarı olduğu
+# ve `verify:config` onu denetlediği icin repository'de durur. Geri kalan her sey
+# (commands, rules, kisisel override, MCP config) yereldir.
+# Dizinin kendisi degil ICERIGI ignore edilir; git ignore edilmis bir dizine hic
+# inmedigi icin `.claude/` yazilsaydi asagidaki negation calismazdi.
+.claude/*
+!.claude/settings.json
+.claude.json
 .mcp.json
 
 # Veritabanı verisi ve evidence çıktıları
