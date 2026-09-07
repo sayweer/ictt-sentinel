@@ -3,11 +3,10 @@
 > ICM / ICTT Teminat Yeterliliği ve Değişmezlik Nöbetçisi
 > *(uzun ad yalnız açıklamadır; identifier her yerde `ictt-sentinel`'dir)*
 
-> **Durum: scaffold / technical preview.**
-> Bu repository şu an **yalnız iskelet ve dokümantasyondur**. Ürün davranışı, RPC adapter'ı,
-> invariant motoru ve veritabanı mantığı **henüz yazılmamıştır**. Çalışan bir CLI yoktur.
-> Neyin planlandığı ile neyin var olduğu için `docs/SUPPORT_MATRIX.md`'ye bakın —
-> `IMPLEMENTED` satır sayısı bugün **0**'dır.
+> **Durum: technical preview — offline CLI ve saf invariant motoru çalışıyor.**
+> Milestone 11'in evidence/CLI teslimleri geliştirildi. Gerçek deployment manifestinden
+> census, drift ve ekonomik observation girdilerini üreten uçtan uca toplayıcı henüz bağlı değil;
+> gerçek zincir kontrolü tamamlanmış sayılmaz. Kapsam ve doğrulama: `docs/milestones/11.md`.
 
 ---
 
@@ -164,29 +163,60 @@ Global install **gerekmez**; binary workspace içinden çalışır. Binary adı 
 
 ```bash
 # 1) Sağlıklı canonical ERC20  -> OK, exit 0
-pnpm exec ictt-sentinel check --fixture healthy;      echo "exit=$?"
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture healthy;      echo "exit=$?"
 
 # 2) Provider'lar block hash üzerinde anlaşamıyor -> UNKNOWN, exit 3
-pnpm exec ictt-sentinel check --fixture disagreement; echo "exit=$?"
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture disagreement; echo "exit=$?"
 
 # 3) Kanıtlı teminat/muhasebe açığı -> CRITICAL, exit 2
-pnpm exec ictt-sentinel check --fixture deficit;      echo "exit=$?"
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture deficit;      echo "exit=$?"
 ```
 
 `pnpm exec` kullanmak istemezsen birebir eşdeğer kök script:
-`pnpm run cli -- check --fixture healthy`
+`pnpm run cli -- check --fixture healthy` (kök dizinden çalışır; çıktı dizini köktedir)
 
 Evidence üret ve **offline doğrula**:
 
 ```bash
-pnpm exec ictt-sentinel evidence export --fixture healthy
-pnpm exec ictt-sentinel evidence verify \
-  --file evidence-out/healthy.evidence.json --fixture healthy
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel evidence export --fixture healthy
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel evidence verify \
+  --file evidence-out/healthy.evidence.json
 ```
 
 `evidence export` iki dosya yazar: kanonik JSON ve aynı çekirdekten türetilmiş HTML.
 **HTML core hash'ini değiştirmez.** Dosyalar `0600` izinle, temp + `fsync` + `rename` ile
-atomik yazılır.
+atomik yazılır. Varsayılan dizin komutun çalışma dizinindeki `evidence-out`'tur;
+`pnpm --filter` bunu `apps/cli/evidence-out` altında oluşturur. Aşağıdaki verify yolu da
+aynı paket çalışma dizininden çözülür. `--evidence-dir` yalnız operatörün belirlediği dizindir;
+bundle girdisi dosya yolu belirleyemez. Dizin private (`0700`) olmalı, symlink olamaz.
+JSON ve HTML ayrı atomik dosyalardır; ikisi tek bir filesystem transaction'ı değildir.
+SIGINT sonrası tamamlanmış JSON doğrulanabilir; HTML eksikse export yeniden çalıştırılır.
+
+`--version --json`, üretilen bundle ile aynı artifact checksum'ını verir. Checksum çalışan
+CLI ve workspace runtime modüllerinden hesaplanır; `buildCommit: artifact-addressed` bir Git
+commit'i iddiası değildir. Fixture kimlikleri, kontrat bytecode hash'leri ve gözlemleri
+**kurgusaldır**; `FICTIONAL_OFFLINE_FIXTURE` alanıyla işaretlenir. Tarihler sabittir:
+verifier geçmişteki değerlendirmeyi yeniden üretir, bugünün zincir sağlığını ölçmez.
+
+Offline fact taramasını sınırlı adımlarla yürüt:
+
+```bash
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel replay --fixture healthy --max-facts 1
+# İlk adım tamamlanmadığı için UNKNOWN / exit 3.
+pnpm --filter @ictt-sentinel/cli exec ictt-sentinel replay --fixture healthy --max-facts 1 --resume
+# Aynı input ve build için kalan adım: OK / exit 0.
+```
+
+Checkpoint yalnız aynı bundle hash'i için kullanılabilir. Ayrışma/eksik kanıt checkpoint'i
+ilerletmez. Bu, bundle içindeki fact listesinin sınırlı taramasıdır; RPC log replay'i değildir.
+`check` tüm sabit snapshot'ı değerlendirir; bounded resume şu an `replay` komutundadır.
+
+`discover --fixture healthy --json` inceleme için **candidate projection** ve diff üretir;
+import edilebilir tam deployment manifesti üretmez, baseline yazmaz ve exit 3 verir.
+`doctor --json` secret adları için presence raporlar; canlı RPC/DB probe'ları bağlı olmadığı
+sürece `ready: false` verir (eksik config 5; doğrulanmamış readiness 3).
+Telemetry kapalıdır. `--help`, `--version`, `init` bilgi komutları başarıyla çalışınca 0 verir;
+bu komutlar deployment sağlık hükmü üretmez.
 
 `--json` makine çıktısını **stdout**'a verir; bütün insan çıktısı ve ilerleme **stderr**'a gider,
 böylece `| jq` filtresiz çalışır.

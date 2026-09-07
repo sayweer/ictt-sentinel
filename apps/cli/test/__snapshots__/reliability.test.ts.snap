@@ -1,0 +1,42 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CLI reliability > pins the exact help output 1`] = `
+"ictt-sentinel - keyless, read-only assurance for Avalanche ICM/ICTT deployments
+
+USAGE
+  ictt-sentinel <command> [options]
+
+COMMANDS
+  init                    Print setup guidance. Never asks for or writes a secret.
+  discover                Produce a candidate manifest draft and a diff. Never approves.
+  doctor                  Check readiness. Reports secret PRESENCE, never a value.
+  replay   --fixture <s>  Replay a bounded, pinned range. Offline against a fixture.
+  check    --fixture <s>  Evaluate and report the verdict.
+  evidence export --fixture <s>   Write a reproducible evidence bundle (JSON + HTML).
+  evidence verify --file <path> [--fixture <s>]
+                          Verify self-contained inputs and re-run the pure engine.
+
+OPTIONS
+  --json                  Machine output on stdout. Human output always goes to stderr.
+  --evidence-dir <path>   Where bundles are written. Default: ./evidence-out
+  --max-facts <n>         Process at most n facts per offline replay (1..10000).
+  --resume                Resume a checkpoint bound to the same bundle hash.
+  --version               Build identity. Matches the evidence producer identity.
+  --help                  This text.
+
+FIXTURES
+  healthy       Canonical ERC20, reconciled, fully evidenced -> OK
+  disagreement  Independent providers disagree on a pinned block hash -> UNKNOWN
+  deficit       Remote supply exceeds home accounting under a closed cut -> CRITICAL
+
+EXIT CODES
+  0  OK - every required control complete, fresh and passing
+  2  CRITICAL - deterministic breach observed with sufficient evidence
+  3  UNKNOWN - a required control could not be established
+  4  WARN - policy or liveness deviation
+  5  invalid configuration or arguments; nothing was evaluated
+  6  internal error in the tool itself
+
+This tool holds no key, sends no transaction and can pause nothing.
+"
+`;

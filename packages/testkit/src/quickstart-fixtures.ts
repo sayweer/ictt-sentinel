@@ -149,6 +149,17 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
           beacon: null,
           recognised: true,
         },
+        {
+          role: 'erc20-token-remote',
+          blockchainId: REMOTE,
+          runtimeCodeHash: `0x${'35'.repeat(32)}`,
+          address: firstRemote.remoteAddress,
+          implementationAddress: null,
+          implementationCodeHash: null,
+          proxyAdmin: null,
+          beacon: null,
+          recognised: true,
+        },
       ],
       chains: [
         {

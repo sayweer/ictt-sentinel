@@ -151,7 +151,7 @@ describe('secret hygiene', () => {
   it('detects a planted canary, so the check is not vacuous', () => {
     // If this passed while the check above also passed, the check would prove
     // nothing.
-    const canary = 'https://rpc.example.com/v3/deadbeefdeadbeefdeadbeefdeadbeef';
+    const canary = `https://rpc.example.com/v3/${'deadbeef'.repeat(4)}`;
     expect(findSecrets(`endpoint: ${canary}`).length).toBeGreaterThan(0);
     expect(findSecrets('postgres://user:hunter2hunter2@db.internal/x').length).toBeGreaterThan(0);
     expect(

@@ -34,7 +34,19 @@ interface Captured {
 }
 
 /** JSON output is a documented contract, so the tests read it as a typed shape. */
-const parseOut = <T>(captured: Captured): T => JSON.parse(captured.stdout) as T;
+interface CliOutput {
+  schemaVersion: string;
+  producer: string;
+  version: string;
+  createdNothing: boolean;
+  approvedManifestModified: boolean;
+  note: string;
+  files: string[];
+  verified: boolean;
+  findings: { failure: string }[];
+  trustBoundary: string[];
+}
+const parseOut = (captured: Captured): CliOutput => JSON.parse(captured.stdout) as CliOutput;
 
 const invoke = (
   argv: readonly string[],
@@ -116,8 +128,10 @@ describe('exit codes', () => {
 describe('stream discipline', () => {
   it('puts machine JSON on stdout and nothing else', () => {
     const r = invoke(['check', '--fixture', 'healthy', '--json']);
-    expect(() => JSON.parse(r.stdout)).not.toThrow();
-    expect(parseOut<{ schemaVersion: string }>(r).schemaVersion).toBe(JSON_SCHEMA_VERSION);
+    expect(() => {
+      JSON.parse(r.stdout);
+    }).not.toThrow();
+    expect(parseOut(r).schemaVersion).toBe(JSON_SCHEMA_VERSION);
   });
 
   it('puts human output on stderr, so a JSON pipe stays clean', () => {
@@ -134,7 +148,7 @@ describe('stream discipline', () => {
 
   it('reports the same identity from --version as the evidence producer', () => {
     const r = invoke(['--version', '--json']);
-    const parsed = parseOut<{ producer: string; version: string }>(r);
+    const parsed = parseOut(r);
     expect(parsed.producer).toBe('ictt-sentinel');
     expect(parsed.version).toBe('0.0.0');
     expect(buildBundle(quickstartBundleDraft('healthy')).core.producer.producer).toBe(
@@ -189,16 +203,14 @@ describe('parseArgs', () => {
 describe('init and discover', () => {
   it('init writes nothing and asks for no secret', () => {
     const r = invoke(['init', '--json']);
-    const parsed = parseOut<{ createdNothing: boolean }>(r);
+    const parsed = parseOut(r);
     expect(parsed.createdNothing).toBe(true);
     expect(r.stdout.toLowerCase()).not.toContain('password');
     expect(r.stdout).toContain('.env.example');
   });
 
   it('discover never modifies the approved manifest', () => {
-    const parsed = parseOut<{ approvedManifestModified: boolean; note: string }>(
-      invoke(['discover', '--json']),
-    );
+    const parsed = parseOut(invoke(['discover', '--json']));
     expect(parsed.approvedManifestModified).toBe(false);
     expect(parsed.note).toContain('cannot approve');
   });
@@ -224,7 +236,7 @@ describe('evidence export and verify', () => {
       evidenceDir: dir,
     });
     expect(r.code).toBe(EXIT.ok);
-    const parsed = parseOut<{ files: string[] }>(r);
+    const parsed = parseOut(r);
     expect(parsed.files).toHaveLength(2);
     for (const f of parsed.files) expect(existsSync(f)).toBe(true);
   });
@@ -261,7 +273,7 @@ describe('evidence export and verify', () => {
       readBundle: () => bundle,
     });
     expect(r.code).toBe(EXIT.ok);
-    expect(parseOut<{ verified: boolean }>(r).verified).toBe(true);
+    expect(parseOut(r).verified).toBe(true);
   });
 
   it('fails verification when one byte of the bundle changed', () => {
@@ -274,16 +286,14 @@ describe('evidence export and verify', () => {
       readBundle: () => tampered,
     });
     expect(r.code).not.toBe(EXIT.ok);
-    expect(parseOut<{ findings: { failure: string }[] }>(r).findings[0]?.failure).toBe(
-      'content-hash-mismatch',
-    );
+    expect(parseOut(r).findings[0]?.failure).toBe('content-hash-mismatch');
   });
 
   it('always states what verification does NOT establish', () => {
     const r = invoke(['evidence', 'verify', '--file', 'x', '--json'], {
       readBundle: () => buildBundle(quickstartBundleDraft('healthy')),
     });
-    const boundary = parseOut<{ trustBoundary: string[] }>(r).trustBoundary;
+    const boundary = parseOut(r).trustBoundary;
     expect(boundary.join(' ')).toContain('NOT verified here');
     expect(boundary.join(' ')).toContain('not tamper-proof');
   });
@@ -404,7 +414,9 @@ describe('binary identity', () => {
       fileURLToPath(new URL('../../../README.md', import.meta.url)),
       'utf8',
     );
-    expect(readme).toContain('pnpm exec ictt-sentinel check --fixture healthy');
+    expect(readme).toContain(
+      'pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture healthy',
+    );
     expect(readme).toContain('pnpm run cli --');
     // All three fixtures reachable from the docs.
     for (const f of ['healthy', 'disagreement', 'deficit']) {

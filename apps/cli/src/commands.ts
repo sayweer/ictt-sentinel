@@ -1,3 +1,5 @@
+import { replayOffline, type ReplayCursor } from './offline-replay.js';
+import { buildIdentity, sourceLockHash } from './identity.js';
 import { aggregate } from '@ictt-sentinel/invariant-core';
 import {
   buildBundle,
@@ -68,25 +70,31 @@ export const init = (ctx: CommandContext): ExitCode => {
  * permissionlessly registered remote showing up on chain says nothing about
  * whether the operator trusts it (docs/DATA_MODEL.md 3.3).
  */
-export const discover = (ctx: CommandContext): ExitCode => {
+export const discover = (ctx: CommandContext, scenario: string | null = null): ExitCode => {
+  if (scenario !== null && !isScenario(scenario)) return unknownScenario(ctx, scenario);
+  const draft = scenario === null ? null : quickstartBundleDraft(scenario);
   const result = {
     approvedManifestModified: false,
-    candidateDraft: 'candidate-manifest.yml (not written; printed for review)',
-    diff: {
-      added: ['remote 0xbb…/0x55… observed on chain, not present in the approved manifest'],
-      removed: [],
-      changed: [],
-    },
-    note: 'Candidates require explicit operator review. This command cannot approve one.',
+    mode: scenario === null ? 'unconfigured' : 'fictional-offline-fixture',
+    candidateDraft:
+      draft === null
+        ? null
+        : {
+            deploymentId: draft.core.deploymentId,
+            baseline: { state: 'candidate' },
+            observedChains: draft.core.chains,
+            registeredRemotes: draft.core.census.registeredRemotes,
+          },
+    diff: { added: draft?.core.census.registeredRemotes ?? [], removed: [], changed: [] },
+    missing: [
+      'A reviewed deployment manifest and live registration collector are required for production discovery.',
+    ],
+    note: 'Candidates require explicit operator review. This command cannot approve one. The draft is a discovery projection, not an importable deployment manifest.',
+    exitCode: EXIT.requiredUnknown,
   };
   if (ctx.json) emitJson(ctx.writer, 'discover', result);
-  else {
-    emitHuman(ctx.writer, 'ictt-sentinel discover');
-    emitHuman(ctx.writer, '  Approved manifest: NOT modified.');
-    for (const a of result.diff.added) emitHuman(ctx.writer, `  + candidate: ${a}`);
-    emitHuman(ctx.writer, `  ${result.note}`);
-  }
-  return EXIT.ok;
+  else emitHuman(ctx.writer, JSON.stringify(result));
+  return EXIT.requiredUnknown;
 };
 
 /** `doctor` - readiness, reported as presence only. Never a secret value. */
@@ -94,7 +102,11 @@ export const doctor = (
   ctx: CommandContext,
   env: Readonly<Record<string, string | undefined>>,
 ): ExitCode => {
-  const required = ['ICTT_SENTINEL_HOME_RPC_PRIMARY', 'ICTT_SENTINEL_DATABASE_URL'];
+  const required = [
+    'ICTT_SENTINEL_HOME_RPC_PRIMARY',
+    'ICTT_SENTINEL_HOME_RPC_SECONDARY',
+    'DATABASE_URL',
+  ];
   const checks = [
     ...required.map((name) => ({
       check: `env:${name}`,
@@ -119,32 +131,36 @@ export const doctor = (
   ];
   const anyMissing = checks.some((c) => c.status === 'missing');
 
-  if (ctx.json) emitJson(ctx.writer, 'doctor', { checks, ready: !anyMissing });
+  if (ctx.json) emitJson(ctx.writer, 'doctor', { checks, ready: false, telemetry: false });
   else {
     emitHuman(ctx.writer, 'ictt-sentinel doctor');
     for (const c of checks) emitHuman(ctx.writer, `  [${c.status}] ${c.check} - ${c.detail}`);
   }
   // A missing prerequisite is a configuration problem, not a verdict.
-  return anyMissing ? EXIT.invalidConfig : EXIT.ok;
+  return anyMissing ? EXIT.invalidConfig : EXIT.requiredUnknown;
 };
 
 /** `replay` - bounded, resumable, pinned. Offline against a fixture here. */
-export const replay = (ctx: CommandContext, scenario: string): ExitCode => {
-  if (!isScenario(scenario)) return unknownScenario(ctx, scenario);
+export const replay = (
+  ctx: CommandContext,
+  scenario: string,
+  cursor: ReplayCursor = { maxFacts: 100, resume: false },
+): ExitCode => {
+  const evaluated = check({ ...ctx, json: false, writer: silentWriter }, scenario);
+  if (typeof evaluated === 'number') return evaluated;
+  const progress = replayOffline(evaluated.bundle, ctx.evidenceDir, cursor);
+  const exitCode = progress.complete ? evaluated.exitCode : EXIT.requiredUnknown;
   const result = {
     scenario,
-    mode: 'fixture (offline; no RPC)',
-    pinned: true,
-    resumedFrom: null,
-    rangesProcessed: 1,
-    note: 'A real replay resumes from the last committed checkpoint and never advances it past unagreed evidence.',
+    mode: 'fictional-offline-fixture',
+    pinnedBlocks: evaluated.bundle.core.chains,
+    contentHash: evaluated.bundle.contentHash,
+    ...progress,
+    exitCode,
   };
   if (ctx.json) emitJson(ctx.writer, 'replay', result);
-  else {
-    emitHuman(ctx.writer, `ictt-sentinel replay --fixture ${scenario}`);
-    emitHuman(ctx.writer, `  ${result.mode}, pinned blocks, 1 range`);
-  }
-  return EXIT.ok;
+  else emitHuman(ctx.writer, JSON.stringify(result));
+  return exitCode;
 };
 
 export interface CheckResult {
@@ -157,11 +173,21 @@ export const check = (ctx: CommandContext, scenario: string): CheckResult | Exit
   if (!isScenario(scenario)) return unknownScenario(ctx, scenario);
 
   const verdict = aggregate(quickstartAggregation(scenario));
-  const bundle = buildBundle(quickstartBundleDraft(scenario));
+  const draft = quickstartBundleDraft(scenario);
+  const bundle = buildBundle({
+    ...draft,
+    core: {
+      ...draft.core,
+      producer: buildIdentity(),
+      sourceLock: { ...draft.core.sourceLock, sourceLockHash: sourceLockHash() },
+    },
+    presentation: { ...draft.presentation, toolVersion: ctx.version },
+  });
   const exitCode = exitCodeForVerdict(verdict);
 
   if (ctx.json) {
     emitJson(ctx.writer, 'check', {
+      assuranceMode: bundle.core.assurance.assuranceMode,
       deploymentId: bundle.core.deploymentId,
       protocolStatus: verdict.protocolStatus,
       dataStatus: verdict.dataStatus,
@@ -175,6 +201,7 @@ export const check = (ctx: CommandContext, scenario: string): CheckResult | Exit
     });
   } else {
     emitHuman(ctx.writer, `ictt-sentinel check --fixture ${scenario}`);
+    emitHuman(ctx.writer, `  assurance_mode  : ${bundle.core.assurance.assuranceMode}`);
     emitHuman(ctx.writer, `  protocol_status : ${verdict.protocolStatus}`);
     emitHuman(ctx.writer, `  data_status     : ${verdict.dataStatus}`);
     emitHuman(ctx.writer, `  claim_mode      : ${verdict.claimMode}`);
@@ -221,6 +248,7 @@ export const evidenceVerify = (
   bundle: EvidenceBundle,
   scenario: string | null,
 ): ExitCode => {
+  if (scenario !== null && !isScenario(scenario)) return unknownScenario(ctx, scenario);
   const replayInputs =
     scenario !== null && isScenario(scenario)
       ? { aggregation: quickstartAggregation(scenario) }
@@ -240,7 +268,7 @@ export const evidenceVerify = (
     emitHuman(ctx.writer, 'What this does NOT establish:');
     for (const t of result.trustBoundary) emitHuman(ctx.writer, `  - ${t}`);
   }
-  return result.verified ? EXIT.ok : EXIT.requiredUnknown;
+  return result.verified ? exitCodeForVerdict(bundle.core.verdict) : EXIT.requiredUnknown;
 };
 
 /** Recompute a bundle's hash without trusting the one it carries. */
@@ -253,6 +281,8 @@ const unknownScenario = (ctx: CommandContext, scenario: string): ExitCode => {
     ctx.writer,
     `unknown fixture ${JSON.stringify(scenario)}; expected one of: ${QUICKSTART_SCENARIOS.join(', ')}`,
   );
+  if (ctx.json)
+    emitJson(ctx.writer, 'error', { error: 'unknown-fixture', exitCode: EXIT.invalidConfig });
   for (const s of QUICKSTART_SCENARIOS) emitHuman(ctx.writer, `  ${s}: ${SCENARIO_SUMMARY[s]}`);
   return EXIT.invalidConfig;
 };

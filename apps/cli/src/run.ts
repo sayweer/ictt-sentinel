@@ -1,3 +1,7 @@
+import { resolve } from 'node:path';
+import { ConfigError } from '@ictt-sentinel/config';
+import { InvalidCheckpointError } from './offline-replay.js';
+import { buildIdentity } from './identity.js';
 import { readFileSync } from 'node:fs';
 import type { EvidenceBundle } from '@ictt-sentinel/evidence';
 import { QUICKSTART_SCENARIOS, SCENARIO_SUMMARY } from '@ictt-sentinel/testkit';
@@ -51,11 +55,13 @@ COMMANDS
   check    --fixture <s>  Evaluate and report the verdict.
   evidence export --fixture <s>   Write a reproducible evidence bundle (JSON + HTML).
   evidence verify --file <path> [--fixture <s>]
-                          Verify a bundle offline and re-run the engine.
+                          Verify self-contained inputs and re-run the pure engine.
 
 OPTIONS
   --json                  Machine output on stdout. Human output always goes to stderr.
   --evidence-dir <path>   Where bundles are written. Default: ./evidence-out
+  --max-facts <n>         Process at most n facts per offline replay (1..10000).
+  --resume                Resume a checkpoint bound to the same bundle hash.
   --version               Build identity. Matches the evidence producer identity.
   --help                  This text.
 
@@ -80,6 +86,8 @@ interface ParsedArgs {
   readonly file: string | null;
   readonly evidenceDir: string | null;
   readonly unknownFlags: readonly string[];
+  readonly maxFacts: number;
+  readonly resume: boolean;
 }
 
 export const parseArgs = (argv: readonly string[]): ParsedArgs => {
@@ -91,15 +99,37 @@ export const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let fixture: string | null = null;
   let file: string | null = null;
   let evidenceDir: string | null = null;
+  let maxFacts = 100;
+  let resume = false;
+  const seen = new Set<string>();
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === undefined) continue;
+    if (a === undefined || (a === '--' && i === 0)) continue;
     if (!a.startsWith('-')) {
       positional.push(a);
       continue;
     }
+    if (seen.has(a)) unknownFlags.push('duplicate option');
+    seen.add(a);
+    if (
+      ['--fixture', '--file', '--evidence-dir', '--max-facts'].includes(a) &&
+      (argv[i + 1] === undefined || argv[i + 1]?.startsWith('-'))
+    ) {
+      unknownFlags.push('missing option value');
+      continue;
+    }
     switch (a) {
+      case '--resume':
+        resume = true;
+        break;
+      case '--max-facts': {
+        const raw = argv[++i] ?? '';
+        if (!/^[1-9][0-9]*$/.test(raw) || Number(raw) > 10000)
+          unknownFlags.push('invalid fact bound');
+        else maxFacts = Number(raw);
+        break;
+      }
       case '--json':
         json = true;
         break;
@@ -130,7 +160,11 @@ export const parseArgs = (argv: readonly string[]): ParsedArgs => {
     }
   }
 
+  if (positional.length > (positional[0] === 'evidence' ? 2 : 1))
+    unknownFlags.push('extra positional argument');
   return {
+    maxFacts,
+    resume,
     command: positional[0] ?? '',
     sub: positional[1] ?? null,
     json,
@@ -147,30 +181,36 @@ export const run = (options: RunOptions): ExitCode => {
   const args = parseArgs(options.argv);
   const { writer } = options;
 
-  if (args.unknownFlags.length > 0) {
+  const invalidUse =
+    ((args.resume || args.maxFacts !== 100) && args.command !== 'replay') ||
+    (args.file !== null && !(args.command === 'evidence' && args.sub === 'verify')) ||
+    (args.fixture !== null && !['check', 'replay', 'discover', 'evidence'].includes(args.command));
+  if (args.unknownFlags.length > 0 || invalidUse) {
     emitHuman(writer, `unknown option(s): ${args.unknownFlags.join(', ')}`);
     emitHuman(writer, `run \`${BINARY} --help\``);
+    if (args.json)
+      emitJson(writer, 'error', { error: 'invalid-arguments', exitCode: EXIT.invalidConfig });
     return EXIT.invalidConfig;
   }
 
   if (args.version) {
     // Identical to the evidence producer identity, so a bundle can be traced to
     // the build that made it.
-    if (args.json)
-      emitJson(writer, '--version', { producer: 'ictt-sentinel', version: options.version });
-    else writer.err(`${BINARY} ${options.version}\n`);
+    if (args.json) emitJson(writer, '--version', { ...buildIdentity(), version: options.version });
+    else writer.err(`${BINARY} ${options.version} ${buildIdentity().artifactChecksum}\n`);
     return EXIT.ok;
   }
 
   if (args.help || args.command === '' || args.command === 'help') {
-    writer.err(HELP);
+    if (args.json) emitJson(writer, '--help', { help: HELP });
+    else writer.err(HELP);
     return args.command === '' && !args.help ? EXIT.invalidConfig : EXIT.ok;
   }
 
   const ctx: CommandContext = {
     writer,
     json: args.json,
-    evidenceDir: args.evidenceDir ?? options.evidenceDir,
+    evidenceDir: args.evidenceDir === null ? options.evidenceDir : resolve(args.evidenceDir),
     version: options.version,
     isTty: options.isTty,
   };
@@ -180,11 +220,13 @@ export const run = (options: RunOptions): ExitCode => {
       case 'init':
         return init(ctx);
       case 'discover':
-        return discover(ctx);
+        return discover(ctx, args.fixture);
       case 'doctor':
         return doctor(ctx, options.env);
       case 'replay':
-        return requireFixture(ctx, args.fixture, (f) => replay(ctx, f));
+        return requireFixture(ctx, args.fixture, (f) =>
+          replay(ctx, f, { maxFacts: args.maxFacts, resume: args.resume }),
+        );
       case 'check':
         return requireFixture(ctx, args.fixture, (f) => {
           const r = check(ctx, f);
@@ -193,6 +235,8 @@ export const run = (options: RunOptions): ExitCode => {
       case 'evidence':
         return evidence(ctx, args, options);
       default:
+        if (args.json)
+          emitJson(writer, 'error', { error: 'unknown-command', exitCode: EXIT.invalidConfig });
         emitHuman(writer, `unknown command ${JSON.stringify(args.command)}`);
         emitHuman(writer, `run \`${BINARY} --help\``);
         return EXIT.invalidConfig;
@@ -200,8 +244,22 @@ export const run = (options: RunOptions): ExitCode => {
   } catch (e) {
     // An internal fault is never reported as a verdict: it gets its own code so
     // a pipeline cannot mistake a crashed tool for a healthy deployment.
-    emitHuman(writer, `internal error: ${e instanceof Error ? e.message : String(e)}`);
-    return EXIT.internalError;
+    const code =
+      e instanceof ConfigError || e instanceof InvalidCheckpointError || e instanceof SyntaxError
+        ? EXIT.invalidConfig
+        : EXIT.internalError;
+    emitHuman(
+      writer,
+      code === EXIT.invalidConfig
+        ? 'Invalid configuration, JSON or checkpoint.'
+        : 'Internal operation failed; no untrusted error detail emitted.',
+    );
+    if (args.json)
+      emitJson(writer, args.command, {
+        error: code === EXIT.invalidConfig ? 'invalid-config' : 'internal-error',
+        exitCode: code,
+      });
+    return code;
   }
 };
 
@@ -212,6 +270,8 @@ const requireFixture = (
 ): ExitCode => {
   if (fixture === null) {
     emitHuman(ctx.writer, `--fixture is required; one of: ${QUICKSTART_SCENARIOS.join(', ')}`);
+    if (ctx.json)
+      emitJson(ctx.writer, 'error', { error: 'missing-fixture', exitCode: EXIT.invalidConfig });
     return EXIT.invalidConfig;
   }
   return fn(fixture);
@@ -224,6 +284,11 @@ const evidence = (ctx: CommandContext, args: ParsedArgs, options: RunOptions): E
   if (args.sub === 'verify') {
     if (args.file === null) {
       emitHuman(ctx.writer, '--file is required for `evidence verify`');
+      if (ctx.json)
+        emitJson(ctx.writer, 'evidence verify', {
+          error: 'missing-file',
+          exitCode: EXIT.invalidConfig,
+        });
       return EXIT.invalidConfig;
     }
     const read = options.readBundle ?? defaultReadBundle;
@@ -231,6 +296,8 @@ const evidence = (ctx: CommandContext, args: ParsedArgs, options: RunOptions): E
     return evidenceVerify(ctx, bundle, args.fixture);
   }
   emitHuman(ctx.writer, 'usage: evidence <export|verify>');
+  if (ctx.json)
+    emitJson(ctx.writer, 'evidence', { error: 'invalid-subcommand', exitCode: EXIT.invalidConfig });
   return EXIT.invalidConfig;
 };
 

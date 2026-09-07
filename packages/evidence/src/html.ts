@@ -1,3 +1,4 @@
+import { canonicalStringify } from './canonical.js';
 import type { EvidenceBundle } from './schema.js';
 import { redact } from './redact.js';
 
@@ -125,6 +126,9 @@ export const renderHtml = (bundle: EvidenceBundle): string => {
 
 <h2>Missing or contradictory evidence</h2>
 ${list([...core.completeness.missingEvidence, ...core.completeness.contradictoryEvidence])}
+
+<h2>Replay inputs and complete proof</h2>
+<details><summary>Canonical core (all units, intermediate calculations and references)</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(canonicalStringify(core))}</pre></details>
 
 <h2>Assumptions</h2>
 ${list(core.assurance.assumptions)}

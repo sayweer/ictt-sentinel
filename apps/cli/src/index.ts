@@ -8,6 +8,9 @@
 // command is read-only, and the only thing it writes is an evidence bundle in a
 // directory the operator names.
 
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { setImmediate } from 'node:timers/promises';
 import { EXIT, type ExitCode } from './exit-codes.js';
 import { processWriter } from './output.js';
 import { run } from './run.js';
@@ -38,26 +41,32 @@ export const VERSION = '0.0.0' as const;
 
 const isDirectRun = (): boolean => {
   const entry = process.argv[1];
-  return entry !== undefined && entry.endsWith('index.js');
+  return entry !== undefined && pathToFileURL(realpathSync(entry)).href === import.meta.url;
 };
 
 if (isDirectRun()) {
   // Cancellation sets the exit code and lets the process unwind normally. No
   // command performs a partial write that a signal could strand: evidence is
   // written atomically or not at all.
+  const cancellation = new AbortController();
   const onCancel = (): void => {
+    cancellation.abort();
     process.exitCode = EXIT.internalError;
   };
   process.once('SIGINT', onCancel);
   process.once('SIGTERM', onCancel);
 
-  const code: ExitCode = run({
-    argv: process.argv.slice(2),
-    writer: processWriter,
-    env: process.env,
-    evidenceDir: `${process.cwd()}/evidence-out`,
-    version: VERSION,
-    isTty: Boolean(process.stderr.isTTY),
-  });
-  process.exitCode = code;
+  await setImmediate();
+  const code: ExitCode = cancellation.signal.aborted
+    ? EXIT.internalError
+    : run({
+        argv: process.argv.slice(2),
+        writer: processWriter,
+        env: process.env,
+        evidenceDir: `${process.cwd()}/evidence-out`,
+        version: VERSION,
+        isTty: process.stderr.isTTY,
+      });
+  await setImmediate();
+  process.exitCode = cancellation.signal.aborted ? EXIT.internalError : code;
 }

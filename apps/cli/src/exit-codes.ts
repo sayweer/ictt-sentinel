@@ -30,7 +30,7 @@ export const EXIT = {
 
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
 
-export const exitCodeForVerdict = (v: GlobalVerdict): ExitCode => {
+export const exitCodeForVerdict = (v: Pick<GlobalVerdict, 'protocolStatus'>): ExitCode => {
   switch (v.protocolStatus) {
     case 'OK':
       return EXIT.ok;

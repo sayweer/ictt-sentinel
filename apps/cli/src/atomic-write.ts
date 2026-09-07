@@ -2,11 +2,15 @@ import {
   closeSync,
   fsyncSync,
   mkdirSync,
+  lstatSync,
+  realpathSync,
+  statSync,
   openSync,
   renameSync,
   unlinkSync,
   writeSync,
 } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
 /**
@@ -67,37 +71,59 @@ export interface AtomicWriteResult {
  * `fsync` before the rename is what makes this survive a power loss rather than
  * merely a crash: without it the rename can land while the contents have not.
  */
-export const writeAtomic = (root: string, name: string, contents: string): AtomicWriteResult => {
-  const target = resolveEvidencePath(root, name);
+export const writeAtomic = (
+  root: string,
+  name: string,
+  contents: string,
+  onPhase?: (phase: 'opened' | 'synced' | 'renamed') => void,
+): AtomicWriteResult => {
+  resolveEvidencePath(root, name);
   mkdirSync(resolve(root), { recursive: true, mode: 0o700 });
-
-  // Same directory, so the rename stays within one filesystem and is atomic.
-  const tempName = `${name}.tmp-${String(process.pid)}`;
-  const temp = resolveEvidencePath(root, tempName);
-
+  const rootStat = lstatSync(root);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory() || (rootStat.mode & 0o077) !== 0) {
+    throw new UnsafeEvidencePathError('root must be a private directory, not a symlink');
+  }
+  const stableRoot = realpathSync(root);
+  const target = resolveEvidencePath(stableRoot, name);
+  const temp = resolveEvidencePath(stableRoot, `tmp-${randomUUID()}`);
   let fd: number | null = null;
+  let owned = false;
+  let renamed = false;
   try {
     fd = openSync(temp, 'wx', 0o600);
-    const bytes = writeSync(fd, contents);
+    owned = true;
+    onPhase?.('opened');
+    const bytes = Buffer.from(contents, 'utf8');
+    let offset = 0;
+    while (offset < bytes.length) {
+      const n = writeSync(fd, bytes, offset, bytes.length - offset);
+      if (n === 0) throw new Error('zero-length file write');
+      offset += n;
+    }
     fsyncSync(fd);
+    onPhase?.('synced');
     closeSync(fd);
     fd = null;
+    const current = statSync(root);
+    if (
+      current.ino !== rootStat.ino ||
+      current.dev !== rootStat.dev ||
+      lstatSync(root).isSymbolicLink()
+    )
+      throw new UnsafeEvidencePathError('root changed during write');
     renameSync(temp, target);
-    return { path: target, bytes };
-  } catch (e) {
-    if (fd !== null) {
-      try {
-        closeSync(fd);
-      } catch {
-        // Already closed; nothing further to do on this path.
-      }
-    }
-    // Only ever our own temp file, never the target and never a sibling.
+    renamed = true;
+    const dir = openSync(stableRoot, 'r');
     try {
-      unlinkSync(temp);
-    } catch {
-      // It may never have been created. A missing temp file is not an error.
+      fsyncSync(dir);
+    } finally {
+      closeSync(dir);
     }
-    throw e;
+    onPhase?.('renamed');
+    return { path: target, bytes: bytes.length };
+  } finally {
+    if (fd !== null) closeSync(fd);
+    // Ownership starts only after exclusive create succeeds. Never remove a collision.
+    if (owned && !renamed) unlinkSync(temp);
   }
 };

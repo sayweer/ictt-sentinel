@@ -26,7 +26,21 @@ export const processWriter: Writer = {
 /** Machine output. Stable shape, versioned, stdout only. */
 export const emitJson = (w: Writer, command: string, payload: unknown): void => {
   const document = { schemaVersion: JSON_SCHEMA_VERSION, command, ...(payload as object) };
-  w.out(`${redact(JSON.stringify(document, null, 2))}\n`);
+  const scrub = (value: unknown): unknown => {
+    if (typeof value === 'string') return redact(value);
+    if (Array.isArray(value)) return value.map(scrub);
+    if (value !== null && typeof value === 'object')
+      return Object.fromEntries(
+        Object.entries(value).map(([key, v]) => [
+          redact(key),
+          /^(authorization|password|secret|token|api[_-]?key)$/i.test(key)
+            ? '[redacted]'
+            : scrub(v),
+        ]),
+      );
+    return value;
+  };
+  w.out(`${JSON.stringify(scrub(document), null, 2)}\n`);
 };
 
 /** Human output. stderr, so it never contaminates a JSON pipe. */

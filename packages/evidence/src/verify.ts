@@ -94,8 +94,8 @@ export const verifyBundle = (
     return failed('schema-invalid');
   }
   const bundle = candidate;
-  if (String(bundle.core.producer.schemaVersion) !== EVIDENCE_SCHEMA_VERSION)
-    return failed('schema-version-unknown');
+  const declaredVersion: string = bundle.core.producer.schemaVersion;
+  if (declaredVersion !== EVIDENCE_SCHEMA_VERSION) return failed('schema-version-unknown');
   try {
     canonicalStringify(bundle);
   } catch {
@@ -167,9 +167,9 @@ export const verifyBundle = (
       if (!ok) findings.push({ failure: 'missing-required-evidence', detail });
     };
     const same = (a: unknown, b: unknown) => canonicalStringify(a) === canonicalStringify(b);
+    const producerName: string = core.producer.producer;
     requireEvidence(
-      String(core.producer.producer) === 'ictt-sentinel' &&
-        /^[0-9a-f]{64}$/.test(core.producer.artifactChecksum),
+      producerName === 'ictt-sentinel' && /^[0-9a-f]{64}$/.test(core.producer.artifactChecksum),
       'Invalid producer identity.',
     );
     requireEvidence(
@@ -198,6 +198,26 @@ export const verifyBundle = (
         core.quorum.requiredGroups === input.freshness.requiredWitnessGroups,
       'Invalid quorum threshold.',
     );
+    requireEvidence(
+      core.fingerprints.every(
+        (f) =>
+          /^0x[0-9a-f]{40}$/.test(f.address) &&
+          /^0x[0-9a-f]{64}$/.test(f.runtimeCodeHash) &&
+          core.chains.some((c) => c.blockchainId === f.blockchainId),
+      ),
+      'Invalid contract fingerprint.',
+    );
+    requireEvidence(
+      input.remotes.every((r) =>
+        core.fingerprints.some(
+          (f) =>
+            f.blockchainId === r.remoteBlockchainId &&
+            f.address === r.remoteAddress &&
+            f.recognised === r.fingerprintRecognised,
+        ),
+      ),
+      'Remote fingerprint does not bind replay.',
+    );
     const counts = core.chains.map((chain) => {
       const votes = core.quorum.votes.filter(
         (v) =>
@@ -213,10 +233,24 @@ export const verifyBundle = (
         /^(0|[1-9][0-9]*)$/.test(chain.blockNumber) && /^0x[0-9a-f]{64}$/.test(chain.blockHash),
         'Invalid block pin.',
       );
-      const count = Math.min(
-        new Set(votes.map((v) => v.trustDomain)).size,
-        new Set(votes.map((v) => v.providerGroup)).size,
-      );
+      // Shared domain OR group connects witnesses into one failure domain.
+      const components: { domains: Set<string>; groups: Set<string> }[] = [];
+      for (const vote of votes) {
+        const joined = components.filter(
+          (c) => c.domains.has(vote.trustDomain) || c.groups.has(vote.providerGroup),
+        );
+        const merged = {
+          domains: new Set([vote.trustDomain]),
+          groups: new Set([vote.providerGroup]),
+        };
+        for (const c of joined) {
+          for (const d of c.domains) merged.domains.add(d);
+          for (const g of c.groups) merged.groups.add(g);
+          components.splice(components.indexOf(c), 1);
+        }
+        components.push(merged);
+      }
+      const count = components.length;
       requireEvidence(count >= core.quorum.requiredGroups, 'Independent chain quorum unavailable.');
       return count;
     });
@@ -269,6 +303,12 @@ export const verifyBundle = (
     for (const call of core.stateCalls) {
       requireEvidence(!observations.has(call.observationPath), 'Duplicate state observation.');
       observations.set(call.observationPath, call.result);
+      requireEvidence(
+        core.fingerprints.some(
+          (f) => f.blockchainId === call.blockchainId && f.address === call.target && f.recognised,
+        ),
+        'State call target has no recognised fingerprint.',
+      );
       requireEvidence(
         core.chains.some(
           (c) =>
