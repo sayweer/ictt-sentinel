@@ -59,3 +59,4 @@ export { VERIFY_FAILURES, assertBundleShareable, verifyBundle } from './verify.j
 export type { ReplayInputs, VerifyFailure, VerifyFinding, VerifyResult } from './verify.js';
 
 export { renderHtml } from './html.js';
+export { decodeProofInput, encodeProofInput, replayProof } from './replay.js';

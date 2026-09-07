@@ -19,8 +19,9 @@ const SECRET_PATTERNS: readonly { readonly name: string; readonly rx: RegExp }[]
   // the key is usually in the path.
   { name: 'http-url', rx: /\bhttps?:\/\/[^\s"']+/gi },
   { name: 'ws-url', rx: /\bwss?:\/\/[^\s"']+/gi },
-  { name: 'bearer-token', rx: /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi },
-  { name: 'basic-auth', rx: /\b[A-Za-z0-9._%-]+:[^\s@/]{8,}@[A-Za-z0-9.-]+/g },
+  { name: 'bearer-token', rx: /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi },
+  { name: 'basic-header', rx: /\bBasic\s+[A-Za-z0-9+/]+=*/gi },
+  { name: 'basic-auth', rx: /\b[A-Za-z0-9._%-]+:[^\s@/"'\\]{1,}@[A-Za-z0-9.-]+/g },
   { name: 'private-key-hex', rx: /\b0x[0-9a-fA-F]{64}\b(?=\s*(?:key|secret|mnemonic))/gi },
   {
     name: 'api-key-assignment',

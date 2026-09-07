@@ -1,3 +1,11 @@
+import {
+  encodeProofInput,
+  replayProof,
+  domainSeparatedSha256,
+  factDigest,
+  stateCallDigest,
+} from '@ictt-sentinel/evidence';
+import { proofInput, remote } from './erc20-fixtures.js';
 import type { AggregationInput, ReasonCode } from '@ictt-sentinel/invariant-core';
 import type { BundleDraft } from '@ictt-sentinel/evidence';
 
@@ -25,65 +33,20 @@ const HOME = `0x${'aa'.repeat(32)}`;
 const REMOTE = `0x${'bb'.repeat(32)}`;
 
 /** Aggregation input per scenario, for the invariant engine. */
-export const quickstartAggregation = (scenario: QuickstartScenario): AggregationInput => {
-  switch (scenario) {
-    case 'healthy':
-      return {
-        contributions: [
-          {
-            ruleId: 'ACC-ERC20-CANONICAL',
-            result: 'PASS',
-            critical: false,
-            required: true,
-            claimMode: 'CAUSAL_EXACT',
-            reasons: ['ACC-A00-RECONCILED', 'ACC-B00-COVERAGE-SUFFICIENT'],
-          },
-        ],
-        dataStatus: 'COMPLETE',
-        coverage: 'COMPLETE',
-        missingRequiredEvaluations: [],
-        previousOkExpired: false,
-        evaluationFaults: [],
-      };
-    case 'disagreement':
-      return {
-        contributions: [
-          {
-            ruleId: 'ACC-ERC20-CANONICAL',
-            result: 'UNKNOWN',
-            critical: false,
-            required: true,
-            claimMode: 'INDETERMINATE',
-            reasons: ['ACC-I04-NO-PINNED-BLOCK'],
-          },
-        ],
-        // Witnesses disagreeing is a data fault, not an economic finding.
-        dataStatus: 'DIVERGENT',
-        coverage: 'UNVERIFIED',
-        missingRequiredEvaluations: [],
-        previousOkExpired: false,
-        evaluationFaults: [],
-      };
-    case 'deficit':
-      return {
-        contributions: [
-          {
-            ruleId: 'ACC-ERC20-CANONICAL',
-            result: 'FAIL',
-            critical: true,
-            required: true,
-            claimMode: 'CAUSAL_EXACT',
-            reasons: ['ACC-A01-EXCESS-REMOTE-REPRESENTATION'],
-          },
-        ],
-        dataStatus: 'COMPLETE',
-        coverage: 'COMPLETE',
-        missingRequiredEvaluations: [],
-        previousOkExpired: false,
-        evaluationFaults: [],
-      };
-  }
-};
+export const quickstartProof = (scenario: QuickstartScenario) => ({
+  ...proofInput({
+    remotes: [
+      remote({
+        remoteTotalSupply: scenario === 'deficit' ? 1100n : 1000n,
+        remotePin: scenario !== 'disagreement',
+      }),
+    ],
+    witnessGroups: scenario === 'disagreement' ? 1 : 2,
+  }),
+  deploymentId: `quickstart-${scenario}`,
+});
+export const quickstartAggregation = (scenario: QuickstartScenario): AggregationInput =>
+  replayProof(quickstartProof(scenario)).aggregation;
 
 interface ScenarioShape {
   readonly protocolStatus: 'OK' | 'WARN' | 'CRITICAL' | 'UNKNOWN';
@@ -142,8 +105,15 @@ const SHAPES: Readonly<Record<QuickstartScenario, ScenarioShape>> = {
  */
 export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft => {
   const s = SHAPES[scenario];
-  const factDigestA = 'a'.repeat(64);
-  const factDigestB = 'b'.repeat(64);
+  const input = quickstartProof(scenario);
+  const replayed = replayProof(input);
+  const firstRemote = input.remotes[0];
+  if (!firstRemote || !input.provenance.manifestHash || !input.provenance.policyHash)
+    throw new Error('incomplete fixture provenance');
+  const homeHash = `0x${(100).toString(16).padStart(64, '0')}`;
+  const remoteHash = `0x${(200).toString(16).padStart(64, '0')}`;
+  const factDigestA = factDigest(43114n, homeHash, `0x${'71'.repeat(32)}`, 0);
+  const factDigestB = factDigest(43113n, remoteHash, `0x${'72'.repeat(32)}`, 1);
 
   return {
     core: {
@@ -153,16 +123,25 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
         artifactChecksum: 'c'.repeat(64),
       },
       sourceLock: {
+        sourceLockHash: domainSeparatedSha256(
+          'ictt-sentinel/source-lock/v1',
+          'fictional source-lock attestation',
+        ),
         commitSha: '8fef6ef73767f4497a72d8348a0774a262e0c535',
         adapterId: 'ictt.token-home.erc20',
         adapterVersion: 1,
         adapterEpoch: 'epoch-1',
       },
-      baseline: { manifestHash: 'd'.repeat(64), policyHash: 'e'.repeat(64) },
+      baseline: {
+        manifestHash: input.provenance.manifestHash,
+        policyHash: input.provenance.policyHash,
+      },
       deploymentId: `quickstart-${scenario}`,
       fingerprints: [
         {
           role: 'erc20-token-home',
+          blockchainId: HOME,
+          runtimeCodeHash: `0x${'34'.repeat(32)}`,
           address: `0x${'11'.repeat(20)}`,
           implementationAddress: `0x${'22'.repeat(20)}`,
           implementationCodeHash: `0x${'33'.repeat(32)}`,
@@ -176,7 +155,7 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
           blockchainId: HOME,
           evmChainId: '43114',
           blockNumber: '100',
-          blockHash: `0x${'64'.repeat(32)}`,
+          blockHash: homeHash,
           blockTimestamp: '1700000100',
           acceptanceEvidence: 'allow-unfinalized-queries=false; latest is an accepted block',
           finalityBasis: 'accepted-quorum',
@@ -185,7 +164,7 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
           blockchainId: REMOTE,
           evmChainId: '43113',
           blockNumber: '200',
-          blockHash: `0x${'c8'.repeat(32)}`,
+          blockHash: remoteHash,
           blockTimestamp: '1700000200',
           acceptanceEvidence: 'allow-unfinalized-queries=false; latest is an accepted block',
           finalityBasis: 'accepted-quorum',
@@ -193,12 +172,20 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
       ],
       quorum: {
         votes: [
+          ...['alpha', 'beta'].map((provider, i) => ({
+            endpointId: `ep-000000000000001${String(i)}`,
+            trustDomain: `provider-${provider}`,
+            providerGroup: `provider-${provider}-prod`,
+            blockchainId: HOME,
+            agreedBlockHash: homeHash,
+            agreed: true,
+          })),
           {
             endpointId: 'ep-0000000000000001',
             trustDomain: 'provider-alpha',
             providerGroup: 'provider-alpha-prod',
             blockchainId: REMOTE,
-            agreedBlockHash: `0x${'c8'.repeat(32)}`,
+            agreedBlockHash: remoteHash,
             agreed: true,
           },
           {
@@ -206,7 +193,7 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
             trustDomain: 'provider-beta',
             providerGroup: 'provider-beta-prod',
             blockchainId: REMOTE,
-            agreedBlockHash: s.agreed ? `0x${'c8'.repeat(32)}` : `0x${'99'.repeat(32)}`,
+            agreedBlockHash: s.agreed ? remoteHash : `0x${'99'.repeat(32)}`,
             agreed: s.agreed,
           },
         ],
@@ -217,32 +204,64 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
       rawFacts: [
         {
           evmChainId: '43114',
-          blockHash: `0x${'64'.repeat(32)}`,
+          blockHash: homeHash,
           txHash: `0x${'71'.repeat(32)}`,
           logIndex: 0,
           digest: factDigestA,
         },
         {
           evmChainId: '43113',
-          blockHash: `0x${'c8'.repeat(32)}`,
+          blockHash: remoteHash,
           txHash: `0x${'72'.repeat(32)}`,
           logIndex: 1,
           digest: factDigestB,
         },
       ],
       stateCalls: [
+        ...input.remotes.flatMap((r, i) => [
+          {
+            path: `remotes.${String(i)}.transferredBalance`,
+            value: r.transferredBalance,
+            chain: HOME,
+            target: `0x${'11'.repeat(20)}`,
+            number: '100',
+            hash: homeHash,
+            calldata: '0x01',
+          },
+          {
+            path: `remotes.${String(i)}.remoteTotalSupply`,
+            value: r.remoteTotalSupply,
+            chain: REMOTE,
+            target: r.remoteAddress,
+            number: '200',
+            hash: remoteHash,
+            calldata: '0x18160ddd',
+          },
+        ]),
         {
-          blockchainId: HOME,
+          path: 'homeEscrow.escrowBalance',
+          value: input.homeEscrow.escrowBalance,
+          chain: HOME,
           target: `0x${'11'.repeat(20)}`,
-          calldataDigest: '1'.repeat(64),
-          resultDigest: '2'.repeat(64),
-          blockNumber: '100',
-          blockHash: `0x${'64'.repeat(32)}`,
+          number: '100',
+          hash: homeHash,
+          calldata: '0x02',
         },
-      ],
+      ].map((c) => ({
+        blockchainId: c.chain,
+        target: c.target,
+        observationPath: c.path,
+        result: String(c.value),
+        calldata: c.calldata,
+        calldataDigest: domainSeparatedSha256('ictt-sentinel/calldata/v1', c.calldata),
+        resultDigest: stateCallDigest(c.target, c.calldata, String(c.value)),
+        blockNumber: c.number,
+        blockHash: c.hash,
+        provenance: 'fictional fixture state-call; not an RPC observation',
+      })),
       census: {
         completeness: s.coverage === 'COMPLETE' ? 'complete-from-deployment-block' : 'partial',
-        registeredRemotes: [`${REMOTE}/0x${'55'.repeat(20)}`],
+        registeredRemotes: [`${REMOTE}/${firstRemote.remoteAddress}`],
         missingRemotes: [],
         remotesWithoutRpc: [],
       },
@@ -264,38 +283,9 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
           economicEffectCount: 1,
         },
       ],
-      rules: [
-        {
-          ruleId: 'ACC-ERC20-CANONICAL',
-          ruleVersion: 'acc-erc20-canonical@1',
-          result:
-            s.protocolStatus === 'OK'
-              ? 'PASS'
-              : s.protocolStatus === 'CRITICAL'
-                ? 'FAIL'
-                : 'UNKNOWN',
-          reasonCodes: s.reasons,
-          inputs: {
-            transferredBalance: scenario === 'deficit' ? '1000' : '1000',
-            remoteTotalSupply: scenario === 'deficit' ? '1100' : '1000',
-            pendingTotal: '0',
-          },
-          intermediates: { delta: scenario === 'deficit' ? '-100' : '0' },
-          unit: 'remote-base-units',
-          floor: '0',
-          ceil: '1',
-          dust: '1',
-        },
-      ],
-      verdict: {
-        protocolStatus: s.protocolStatus,
-        dataStatus: s.dataStatus,
-        claimMode: s.claimMode,
-        coverage: s.coverage,
-        reasonCodes: s.reasons,
-        criticalRuleIds: s.criticalRuleIds,
-        unknownRuleIds: s.unknownRuleIds,
-      },
+      replay: { input: encodeProofInput(input), evaluation: replayed.evaluation },
+      rules: [replayed.rule],
+      verdict: replayed.verdict,
       completeness: {
         observedAt: FIXED_TIME,
         expiresAt: EXPIRY,
@@ -306,7 +296,7 @@ export const quickstartBundleDraft = (scenario: QuickstartScenario): BundleDraft
           : ['provider-alpha and provider-beta report different block hashes at remote #200'],
       },
       assurance: {
-        assuranceMode: 'ACCEPTED_STATE_ASSURANCE',
+        assuranceMode: 'FICTIONAL_OFFLINE_FIXTURE',
         assumptions: [
           'Quorum counts independent provider groups; it is not a cryptographic or Byzantine guarantee.',
           'Observed onchain state is coverage at the pinned blocks, not legal recoverability.',

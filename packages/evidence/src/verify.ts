@@ -1,6 +1,8 @@
+import { validBundleShape } from './validate.js';
+import { decodeProofInput, replayProof } from './replay.js';
 import { aggregate, type AggregationInput } from '@ictt-sentinel/invariant-core';
 import { canonicalStringify } from './canonical.js';
-import { hashCore } from './hash.js';
+import { hashCore, factDigest, stateCallDigest, domainSeparatedSha256 } from './hash.js';
 import { assertSecretFree, findSecrets } from './redact.js';
 import { EVIDENCE_SCHEMA_VERSION, type EvidenceBundle } from './schema.js';
 
@@ -21,6 +23,7 @@ import { EVIDENCE_SCHEMA_VERSION, type EvidenceBundle } from './schema.js';
  */
 
 export const VERIFY_FAILURES = [
+  'schema-invalid',
   'schema-version-unknown',
   'content-hash-mismatch',
   'dangling-reference',
@@ -72,29 +75,32 @@ export interface ReplayInputs {
  * the document holds together.
  */
 export const verifyBundle = (
-  bundle: EvidenceBundle,
-  replayInputs: ReplayInputs | null,
+  candidate: unknown,
+  replayInputs: ReplayInputs | null = null,
 ): VerifyResult => {
   const findings: VerifyFinding[] = [];
 
-  // A bundle read from disk is untrusted input: its declared version is whatever
-  // the file says, not what the type claims.
-  const declared: string = bundle.core.producer.schemaVersion;
-  if (declared !== EVIDENCE_SCHEMA_VERSION) {
-    // An unknown schema is refused rather than best-effort parsed: a partial
-    // read of a document whose meaning changed is worse than no read.
-    findings.push({
-      failure: 'schema-version-unknown',
-      detail: `bundle declares ${declared}, this verifier understands ${String(EVIDENCE_SCHEMA_VERSION)}`,
-    });
-    return {
-      verified: false,
-      findings,
-      recomputedHash: '',
-      trustBoundary: TRUST_BOUNDARY,
-    };
+  const failed = (failure: VerifyFailure): VerifyResult => ({
+    verified: false,
+    findings: [{ failure, detail: 'Bundle rejected; no untrusted values echoed.' }],
+    recomputedHash: '',
+    trustBoundary: TRUST_BOUNDARY,
+  });
+  try {
+    const secrets = findSecrets(JSON.stringify(candidate));
+    if (secrets.length > 0) return failed('secret-present');
+    if (!validBundleShape(candidate)) return failed('schema-invalid');
+  } catch {
+    return failed('schema-invalid');
   }
-
+  const bundle = candidate;
+  if (String(bundle.core.producer.schemaVersion) !== EVIDENCE_SCHEMA_VERSION)
+    return failed('schema-version-unknown');
+  try {
+    canonicalStringify(bundle);
+  } catch {
+    return failed('not-canonical');
+  }
   const recomputedHash = hashCore(bundle.core);
   if (recomputedHash !== bundle.contentHash) {
     findings.push({
@@ -130,26 +136,199 @@ export const verifyBundle = (
     });
   }
 
-  // Re-run the pure engine and compare against what the bundle claims.
-  if (replayInputs !== null) {
-    const replayed = aggregate(replayInputs.aggregation);
-    const recorded = bundle.core.verdict;
-    const mismatches: string[] = [];
-    if (replayed.protocolStatus !== recorded.protocolStatus) {
-      mismatches.push(`protocolStatus ${recorded.protocolStatus} != ${replayed.protocolStatus}`);
+  // Re-run the arithmetic using only the signed-by-nobody, self-contained core.
+  try {
+    const core = bundle.core;
+    const input = decodeProofInput(core.replay.input);
+    const replayed = replayProof(input);
+    if (
+      canonicalStringify(replayed.evaluation) !== canonicalStringify(core.replay.evaluation) ||
+      canonicalStringify([replayed.rule]) !== canonicalStringify(core.rules) ||
+      canonicalStringify(replayed.verdict) !== canonicalStringify(core.verdict)
+    ) {
+      findings.push({
+        failure: 'verdict-mismatch',
+        detail: 'Pure rule proof, intermediate arithmetic or full verdict differs.',
+      });
     }
-    if (replayed.dataStatus !== recorded.dataStatus) {
-      mismatches.push(`dataStatus ${recorded.dataStatus} != ${replayed.dataStatus}`);
+    if (replayInputs !== null) {
+      const external = aggregate(replayInputs.aggregation);
+      for (const key of Object.keys(core.verdict) as (keyof typeof core.verdict)[]) {
+        if (canonicalStringify(external[key]) !== canonicalStringify(core.verdict[key])) {
+          findings.push({
+            failure: 'verdict-mismatch',
+            detail: 'Optional external replay assertion differs.',
+          });
+          break;
+        }
+      }
     }
-    if (replayed.claimMode !== recorded.claimMode) {
-      mismatches.push(`claimMode ${recorded.claimMode} != ${replayed.claimMode}`);
+    const requireEvidence = (ok: boolean, detail: string): void => {
+      if (!ok) findings.push({ failure: 'missing-required-evidence', detail });
+    };
+    const same = (a: unknown, b: unknown) => canonicalStringify(a) === canonicalStringify(b);
+    requireEvidence(
+      String(core.producer.producer) === 'ictt-sentinel' &&
+        /^[0-9a-f]{64}$/.test(core.producer.artifactChecksum),
+      'Invalid producer identity.',
+    );
+    requireEvidence(
+      /^[0-9a-f]{64}$/.test(core.sourceLock.sourceLockHash),
+      'Missing source-lock digest.',
+    );
+    requireEvidence(
+      core.deploymentId === input.deploymentId &&
+        core.baseline.manifestHash === input.provenance.manifestHash &&
+        core.baseline.policyHash === input.provenance.policyHash &&
+        core.sourceLock.commitSha === input.provenance.sourceLockCommitSha &&
+        core.sourceLock.adapterId === input.provenance.adapterId &&
+        core.sourceLock.adapterVersion === input.provenance.adapterVersion,
+      'Provenance does not bind the replay input.',
+    );
+    requireEvidence(
+      core.chains.length >= 2 &&
+        core.fingerprints.length > 0 &&
+        core.rawFacts.length > 0 &&
+        core.stateCalls.length > 0 &&
+        core.messages.length > 0,
+      'Required observation collections are empty.',
+    );
+    requireEvidence(
+      core.quorum.requiredGroups >= 2 &&
+        core.quorum.requiredGroups === input.freshness.requiredWitnessGroups,
+      'Invalid quorum threshold.',
+    );
+    const counts = core.chains.map((chain) => {
+      const votes = core.quorum.votes.filter(
+        (v) =>
+          v.blockchainId === chain.blockchainId &&
+          v.agreed &&
+          v.agreedBlockHash === chain.blockHash,
+      );
+      requireEvidence(
+        chain.acceptanceEvidence.length > 0 && chain.finalityBasis === 'accepted-quorum',
+        'Acceptance capability missing.',
+      );
+      requireEvidence(
+        /^(0|[1-9][0-9]*)$/.test(chain.blockNumber) && /^0x[0-9a-f]{64}$/.test(chain.blockHash),
+        'Invalid block pin.',
+      );
+      const count = Math.min(
+        new Set(votes.map((v) => v.trustDomain)).size,
+        new Set(votes.map((v) => v.providerGroup)).size,
+      );
+      requireEvidence(count >= core.quorum.requiredGroups, 'Independent chain quorum unavailable.');
+      return count;
+    });
+    requireEvidence(
+      Math.min(...counts) === input.freshness.independentWitnessGroups &&
+        Math.min(...counts) === core.quorum.independentGroups,
+      'Witness counts differ from replay.',
+    );
+    requireEvidence(
+      core.quorum.votes.every(
+        (v) =>
+          /^ep-[0-9a-f]+$/.test(v.endpointId) &&
+          core.chains.some((c) => c.blockchainId === v.blockchainId),
+      ),
+      'Invalid witness reference.',
+    );
+    const pins = [
+      ...input.remotes.flatMap((r) => [r.homePin, r.remotePin]),
+      input.homeEscrow.homePin,
+    ];
+    requireEvidence(
+      pins.every(
+        (p) =>
+          p !== null &&
+          core.chains.some(
+            (c) =>
+              c.blockchainId === p.blockchainId &&
+              c.blockNumber === p.blockNumber.toString() &&
+              c.blockHash === p.blockHash,
+          ),
+      ),
+      'Replay pin missing from chain observations.',
+    );
+    for (const fact of core.rawFacts) {
+      requireEvidence(
+        fact.digest ===
+          factDigest(BigInt(fact.evmChainId), fact.blockHash, fact.txHash, fact.logIndex),
+        'Raw fact coordinate digest differs.',
+      );
+      requireEvidence(
+        core.chains.some((c) => c.evmChainId === fact.evmChainId && c.blockHash === fact.blockHash),
+        'Raw fact block reference missing.',
+      );
     }
-    if (replayed.coverage !== recorded.coverage) {
-      mismatches.push(`coverage ${recorded.coverage} != ${replayed.coverage}`);
+    requireEvidence(
+      new Set(core.rawFacts.map((f) => f.digest)).size === core.rawFacts.length,
+      'Duplicate raw fact.',
+    );
+    const observations = new Map<string, string>();
+    for (const call of core.stateCalls) {
+      requireEvidence(!observations.has(call.observationPath), 'Duplicate state observation.');
+      observations.set(call.observationPath, call.result);
+      requireEvidence(
+        core.chains.some(
+          (c) =>
+            c.blockchainId === call.blockchainId &&
+            c.blockNumber === call.blockNumber &&
+            c.blockHash === call.blockHash,
+        ),
+        'State call pin missing.',
+      );
+      requireEvidence(
+        call.calldataDigest === domainSeparatedSha256('ictt-sentinel/calldata/v1', call.calldata) &&
+          call.resultDigest === stateCallDigest(call.target, call.calldata, call.result) &&
+          call.provenance.length > 0,
+        'State call digest or provenance differs.',
+      );
     }
-    if (mismatches.length > 0) {
-      findings.push({ failure: 'verdict-mismatch', detail: mismatches.join('; ') });
-    }
+    input.remotes.forEach((r, i) => {
+      for (const field of ['transferredBalance', 'remoteTotalSupply'] as const)
+        requireEvidence(
+          r[field] !== null &&
+            observations.get(`remotes.${String(i)}.${field}`) === String(r[field]),
+          'Required remote state observation missing or contradictory.',
+        );
+    });
+    requireEvidence(
+      input.homeEscrow.escrowBalance !== null &&
+        observations.get('homeEscrow.escrowBalance') === String(input.homeEscrow.escrowBalance),
+      'Escrow observation missing or contradictory.',
+    );
+    requireEvidence(
+      same(
+        core.census.registeredRemotes,
+        input.remotes.map((r) => `${r.remoteBlockchainId}/${r.remoteAddress}`),
+      ) &&
+        core.census.completeness === input.census &&
+        core.census.missingRemotes.length === 0 &&
+        core.census.remotesWithoutRpc.length === 0,
+      'Census incomplete or contradictory.',
+    );
+    requireEvidence(
+      core.completeness.fresh &&
+        input.freshness.fresh &&
+        Number.isFinite(Date.parse(core.completeness.observedAt)) &&
+        Date.parse(core.completeness.expiresAt) > Date.parse(core.completeness.observedAt),
+      'Freshness not established at the recorded evaluation time.',
+    );
+    requireEvidence(
+      core.messages.every((m) => m.timeline.length > 0 && m.envelopeIds.length > 0),
+      'Message lineage missing.',
+    );
+    for (const effect of input.effects)
+      requireEvidence(
+        effect.causalSourceFact !== null && factDigests.has(effect.causalSourceFact),
+        'Effect source reference missing.',
+      );
+  } catch {
+    findings.push({
+      failure: 'schema-invalid',
+      detail: 'Invalid or incomplete replay input; arithmetic was not verified.',
+    });
   }
 
   const serialised = canonicalStringify(bundle.core);
@@ -171,5 +350,5 @@ export const verifyBundle = (
 
 /** Guard used before writing: an unshippable bundle fails loudly. */
 export const assertBundleShareable = (bundle: EvidenceBundle): void => {
-  assertSecretFree(canonicalStringify(bundle.core));
+  assertSecretFree(canonicalStringify(bundle));
 };

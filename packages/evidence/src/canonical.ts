@@ -69,7 +69,15 @@ export const canonicalise = (value: unknown, path = '$'): string => {
     return `[${value.map((v, i) => canonicalise(v, `${path}[${String(i)}]`)).join(',')}]`;
   }
 
-  const entries = Object.entries(value as Record<string, unknown>);
+  if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
+    throw new NonCanonicalValueError(path, 'only plain objects are supported');
+  }
+  const entries = Object.entries(value as Record<string, unknown>).map(
+    ([k, v]) => [k.normalize('NFC'), v] as const,
+  );
+  if (new Set(entries.map(([k]) => k)).size !== entries.length) {
+    throw new NonCanonicalValueError(path, 'duplicate normalised key');
+  }
   // Sorted by code unit, so insertion order cannot change the bytes.
   entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   const body = entries
@@ -103,7 +111,16 @@ export const toCanonicalValue = (value: unknown, path = '$'): CanonicalValue => 
     return value.map((v, i) => toCanonicalValue(v, `${path}[${String(i)}]`));
   }
   if (typeof value === 'object') {
-    const out: Record<string, CanonicalValue> = {};
+    if (
+      Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null
+    ) {
+      throw new NonCanonicalValueError(path, 'only plain objects are supported');
+    }
+    const out: Record<string, CanonicalValue> = Object.create(null) as Record<
+      string,
+      CanonicalValue
+    >;
     for (const [k, v] of Object.entries(value)) {
       if (v === undefined) continue;
       out[k] = toCanonicalValue(v, `${path}.${k}`);

@@ -39,6 +39,7 @@ export interface ProducerIdentity {
 export interface SourceLockRef {
   /** Immutable upstream commit the contract semantics are bound to. */
   readonly commitSha: string;
+  readonly sourceLockHash: string;
   readonly adapterId: string;
   readonly adapterVersion: number;
   /** Which adapter epoch interpreted the bytes. */
@@ -53,6 +54,8 @@ export interface ApprovedBaselineRef {
 /** Exact deployment fingerprints, as observed at a pinned block. */
 export interface ContractFingerprint {
   readonly role: string;
+  readonly blockchainId: string;
+  readonly runtimeCodeHash: string;
   readonly address: string;
   readonly implementationAddress: string | null;
   readonly implementationCodeHash: string | null;
@@ -116,6 +119,10 @@ export interface StateCallRecord {
   readonly target: string;
   readonly calldataDigest: string;
   readonly resultDigest: string;
+  readonly observationPath: string;
+  readonly result: string;
+  readonly calldata: string;
+  readonly provenance: string;
   readonly blockNumber: string;
   readonly blockHash: string;
 }
@@ -206,6 +213,11 @@ export interface EvidenceCore {
   readonly assurance: AssuranceRecord;
   /** Optional link to the previous bundle, for a tamper-EVIDENT sequence. */
   readonly previousBundleHash: string | null;
+  /** Self-contained pure engine input and complete recorded proof. */
+  readonly replay: {
+    readonly input: import('./canonical.js').CanonicalValue;
+    readonly evaluation: import('./canonical.js').CanonicalValue;
+  };
 }
 
 /**

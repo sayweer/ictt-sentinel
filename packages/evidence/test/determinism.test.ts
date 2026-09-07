@@ -120,7 +120,7 @@ describe('content hash', () => {
     const facts = [...base.core.rawFacts];
     const f = facts[0];
     if (!f) throw new Error('fixture has no facts');
-    facts[0] = { ...f, digest: `${f.digest.slice(0, 63)}f` };
+    facts[0] = { ...f, digest: `${f.digest.slice(0, 63)}${f.digest.endsWith('f') ? '0' : 'f'}` };
     expect(buildBundle({ ...base, core: { ...base.core, rawFacts: facts } }).contentHash).not.toBe(
       buildBundle(base).contentHash,
     );
