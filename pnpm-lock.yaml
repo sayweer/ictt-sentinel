@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.9.1)
+      '@ictt-sentinel/cli':
+        specifier: workspace:*
+        version: link:apps/cli
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -441,6 +444,12 @@ importers:
       '@ictt-sentinel/evidence':
         specifier: workspace:*
         version: link:../evidence
+      '@ictt-sentinel/invariant-core':
+        specifier: workspace:*
+        version: link:../invariant-core
+      '@ictt-sentinel/state-machine':
+        specifier: workspace:*
+        version: link:../state-machine
     devDependencies:
       '@types/node':
         specifier: 24.13.3

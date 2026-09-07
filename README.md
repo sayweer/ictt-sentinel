@@ -142,15 +142,71 @@ nvm use
 # 2. pnpm'i corepack ile etkinleştir (packageManager alanı pnpm@11.10.0'ı pinler)
 corepack enable
 
-# 3. Repository config kapısını çalıştır — bugün çalışan tek kapı budur
-pnpm run verify:config
+# 3. Bağımlılıkları kur ve derle
+pnpm install --frozen-lockfile
+pnpm run build
+
+# 4. Bütün kapılar
+pnpm run verify
 ```
 
-> `pnpm install`, lint, typecheck, test ve build kapıları **Milestone 02**'de gelir.
-> Bugün bağımlılık yoktur ve kurulacak bir şey yoktur.
+Kendi ortam dosyanı **sen yönetirsin**; repository gerçek `.env` içermez.
+`ictt-sentinel` hiçbir zaman secret **değerini** okumaz, yazmaz veya sormaz — manifest yalnız
+env değişkeninin **adını** tutar.
 
-Kendi ortam dosyanı **sen yönetirsin**; repository gerçek `.env` içermez ve Claude'un onu
-okuması `.claude/settings.json` ile engellenmiştir.
+### Üç fixture akışı — RPC gerekmez
+
+Aşağıdaki üç akış tamamen **offline** çalışır: public RPC, credential veya veritabanı istemez.
+Amaç, ürünün verebileceği üç cevabı da (yeşil, bilinmiyor, kırmızı) birkaç dakikada görmen.
+
+Global install **gerekmez**; binary workspace içinden çalışır. Binary adı yalnız
+`ictt-sentinel`'dir — generic `sentinel` alias'ı **yoktur**.
+
+```bash
+# 1) Sağlıklı canonical ERC20  -> OK, exit 0
+pnpm exec ictt-sentinel check --fixture healthy;      echo "exit=$?"
+
+# 2) Provider'lar block hash üzerinde anlaşamıyor -> UNKNOWN, exit 3
+pnpm exec ictt-sentinel check --fixture disagreement; echo "exit=$?"
+
+# 3) Kanıtlı teminat/muhasebe açığı -> CRITICAL, exit 2
+pnpm exec ictt-sentinel check --fixture deficit;      echo "exit=$?"
+```
+
+`pnpm exec` kullanmak istemezsen birebir eşdeğer kök script:
+`pnpm run cli -- check --fixture healthy`
+
+Evidence üret ve **offline doğrula**:
+
+```bash
+pnpm exec ictt-sentinel evidence export --fixture healthy
+pnpm exec ictt-sentinel evidence verify \
+  --file evidence-out/healthy.evidence.json --fixture healthy
+```
+
+`evidence export` iki dosya yazar: kanonik JSON ve aynı çekirdekten türetilmiş HTML.
+**HTML core hash'ini değiştirmez.** Dosyalar `0600` izinle, temp + `fsync` + `rename` ile
+atomik yazılır.
+
+`--json` makine çıktısını **stdout**'a verir; bütün insan çıktısı ve ilerleme **stderr**'a gider,
+böylece `| jq` filtresiz çalışır.
+
+### Exit kodları
+
+| Kod | Anlamı |
+|---|---|
+| `0` | **Yalnız** genel `OK` — her zorunlu kontrol complete, fresh ve pass |
+| `2` | `CRITICAL` — yeterli kanıtla deterministic ihlal (olay) |
+| `3` | `UNKNOWN` — zorunlu bir kontrol kurulamadı (kör nokta) |
+| `4` | `WARN` — policy/liveness sapması |
+| `5` | Geçersiz config veya argüman; **hiçbir şey değerlendirilmedi** |
+| `6` | Aracın kendi iç hatası — asla hüküm olarak raporlanmaz |
+
+`2` ve `3` ayrı kodlar çünkü ayrı müdahale isterler: biri olay, diğeri kör nokta.
+
+> **Ne değildir:** evidence bundle *reproducible* ve *audit-shareable*'dır; **tamper-proof
+> değildir**. Dosyayı düzenleyebilen hash'i de yeniden hesaplayabilir. Verifier bunu kendi
+> çıktısında açıkça yazar.
 
 ## Çalışma düzeni: prompt / milestone
 

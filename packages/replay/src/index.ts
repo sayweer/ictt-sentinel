@@ -43,3 +43,11 @@ export type { FetchOutcome, LogSourcePort } from './ports.js';
 
 export { runReplay, persistRemoteCandidates } from './engine.js';
 export type { ReplayConfig, ReplayReport, RangeReport } from './engine.js';
+
+export {
+  projectTeleporter,
+  projectSourceAccounting,
+  projectUnsupportedShape,
+  projectObservations,
+} from './message-projection.js';
+export type { RouteContext, ProjectionOutcome } from './message-projection.js';

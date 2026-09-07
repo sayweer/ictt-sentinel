@@ -10,13 +10,19 @@
   "exclude": ["dist", "node_modules", "test"],
   "references": [
     {
-      "path": "../domain"
-    },
-    {
       "path": "../config"
     },
     {
+      "path": "../domain"
+    },
+    {
       "path": "../evidence"
+    },
+    {
+      "path": "../invariant-core"
+    },
+    {
+      "path": "../state-machine"
     }
   ]
 }

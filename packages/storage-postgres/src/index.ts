@@ -82,3 +82,11 @@ export type {
   CompletenessRow,
   RangeStatusRow,
 } from './replay-store.js';
+
+export {
+  DuplicateEconomicEffectError,
+  writeTransitionBatch,
+  readTransitions,
+  countEconomicEffects,
+} from './transition-store.js';
+export type { TransitionRow } from './transition-store.js';

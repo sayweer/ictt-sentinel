@@ -201,6 +201,39 @@ Aşağıdakiler **tahmin edilmedi**. Source-lock uygulama milestone'una devredil
 | `collateralNeeded` +1 yuvarlaması | `if (multiplyOnRemote && imbalance % tokenMultiplier != 0) collateralNeeded += 1` |
 | `remoteTokenDecimals <= 18` zorunlu | `_registerRemote` require |
 
+### 9.2 Milestone 09'da doğrulanan semantik — `transferredBalance` denominasyonu
+
+Bu, `T08`'in Gate A için gereken kısmını **çözer**. Kaynak, pinned SHA'dan indirilip
+`generated.ts`'teki `sourceSha256` ile **birebir** doğrulandı:
+
+| Dosya | Beklenen sha256 | Sonuç |
+|---|---|---|
+| `TokenHome.sol` (36 511 B) | `2eaedc8d…e83826` | eşleşti |
+| `TokenRemote.sol` (31 346 B) | `d7cbf778…4f4719` | eşleşti |
+| `ERC20TokenRemote.sol` (1 002 B) | `aae93c0e…32f585` | eşleşti |
+| `ERC20TokenRemoteUpgradeable.sol` (9 031 B) | `d620b70a…7b7009` | eşleşti |
+
+**Bulgu — `getTransferredBalance` remote denomination'dadır:**
+
+- `_prepareSend` ve `_prepareMultiHopRouting`:
+  `scaledAmount = TokenScalingUtils.applyTokenScale(...)` (home → remote), ardından
+  `_transferredBalances[...] += scaledAmount`. **Artırma remote biriminde.**
+- `_processReceivedTransfer` NatSpec: *"@param amount The amount of tokens sent back from remote,
+  **denominated by the remote's token scale amount**"*; gövde yorumu:
+  *"Deduct the balance transferred to the given TokenRemote instance **prior to scaling** the
+  amount"* → `_deductSenderBalance(..., amount)`. **Azaltma da remote biriminde.**
+  Home birimine dönüşüm (`removeTokenScale`) bu düşümden **sonra** yapılır.
+- Canonical ERC20 remote: `_withdraw → _mint(recipient, amount)` ve
+  `_burn(amount) → ERC20._burn(sender, amount); return amount`. `totalSupply` aynı
+  remote-denominated miktarlarla hareket eder.
+
+**Bağlayıcı sonuç:** `D_r` ve `S_r` **aynı birimdedir**; `D_r − S_r` çıkarması öncesinde
+**yeniden ölçekleme yapılmaz**. Milestone 09 Gate A bu bulguya dayanır.
+
+**Sınır:** `_burn`'ün NatSpec'i *"the amount returned must match the amount credited as a result
+of the burn"* diyor. Fee-on-transfer veya rebase davranışı bu eşitliği bozar — bu yüzden o
+tokenlar `UNSUPPORTED → UNKNOWN`'dır.
+
 **Bağlayıcı sonuç:** Canonical ERC20 rotasında `C_r` **yapısal olarak sıfırdır**, dolayısıyla
 `A_r = T_r`. Bu rotaya keyfi bir initial-collateral terimi eklenmez.
 

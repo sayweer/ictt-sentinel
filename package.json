@@ -24,11 +24,13 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "build": "tsc --build tsconfig.build.json",
+    "cli": "node apps/cli/dist/index.js",
     "clean": "tsc --build --clean tsconfig.build.json",
     "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@ictt-sentinel/cli": "workspace:*",
     "@types/node": "24.13.3",
     "@vitest/coverage-v8": "4.1.11",
     "eslint": "10.9.1",

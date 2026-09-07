@@ -226,3 +226,66 @@ verdict kolonu **yoktur**, dolayısıyla satırda kanıta terfi edecek hiçbir �
 - `dedup_key` UNIQUE'tir; yeniden teslim edilen webhook sessizce yutulur.
 - Kuyruk **sınırlıdır** (`maxDepth`); dolduğunda yeni hint reddedilir. Sınırsız hint kuyruğu,
   webhook gönderebilen herkesin erişebildiği bir DoS yüzeyidir.
+
+---
+
+## 10. Verdict triage
+
+### verdict-triage
+
+Global hüküm **dört bağımsız alan** taşır. Tek renge bakıp karar verme — "ihlal kanıtladık" ile
+"zinciri okuyamadık" zıt müdahaleler ister.
+
+| Alan | Değerler | Ne söyler |
+|---|---|---|
+| `protocol_status` | `OK` / `WARN` / `CRITICAL` / `UNKNOWN` | Protokol davranışı hakkındaki hüküm |
+| `data_status` | `COMPLETE` / `STALE` / `PARTIAL` / `DIVERGENT` / `UNKNOWN` | Kanıtın kendisinin durumu |
+| `claim_mode` | `EXACT` / `CAUSAL_EXACT` / `SUFFICIENT_UPPER_BOUND` / `INDETERMINATE` / `UNSUPPORTED` | Kanıtın **ne tür** bir iddiayı desteklediği |
+| `coverage` | `COMPLETE` / `PARTIAL` / `UNVERIFIED` | Kapsamın tamlığı |
+
+**Öncelik (fail-closed):** kanıtlı ihlal → `CRITICAL`; yoksa zorunlu bir kontrol kurulamadıysa
+→ `UNKNOWN`; yoksa policy/liveness sapması → `WARN`; yalnız her zorunlu kontrol complete, fresh
+ve pass ise → `OK`.
+
+`CRITICAL` varken eşzamanlı `UNKNOWN` alanlar **raporda kalır** (`unknownRuleIds`) — çünkü bir
+olayla uğraşırken diğer kontrollerin de kör olduğunu bilmen gerekir.
+
+**Exit kodları:** `0` yalnız genel `OK`. `2` = `CRITICAL` (olay), `3` = required `UNKNOWN`
+(kör nokta), `4` = `WARN`. İkisi ayrı kod çünkü ayrı müdahale isterler.
+
+**Müdahale sırası:**
+
+1. `protocol_status: CRITICAL` → ilgili `criticalRuleIds`'in runbook'una git. Kanıtlı ihlal;
+   `data_status` ne olursa olsun önceliklidir.
+2. `UNKNOWN` → `reasonCodes`'a bak. `AGG-M01` (evaluation hiç koşmadı), `AGG-M02` (önceki OK'ın
+   TTL'i doldu), `AGG-M03` (exception/timeout/parse) ve `CFG-N03` (minter census eksik) en sık
+   görülenler. **Hiçbiri yeşile döndürülmez**; kanıt tamamlanmadan hüküm verilmez.
+3. `WARN` → liveness veya policy sapması. **Teminat başlığı altında gösterme.**
+   `RSK-H01` (rate/volume anomaly) ve `RSK-H02` (receipt delay) burada yaşar.
+
+### verdict-native-bound
+
+`claim_mode: SUFFICIENT_UPPER_BOUND` gördüğünde: bu **kesin arz eşitliği değildir.**
+`U = totalMinted + initialReserveImbalance − burnedTxFees − burnedForTransfer` bir muhasebe
+yeniden inşasıdır ve yalnız (a) minter münhasırlığı kurulmuşsa ve (b) arzı azaltan tüm yollar bu
+iki burn adresince yakalanıyorsa üst sınırdır. **(b) doğrulanmamıştır.**
+
+- `U ≤ A` → yalnız *"reported upper bound covered"*.
+- `U > A` → **tek başına teminat açığı değildir**; `INDETERMINATE`. Bilinmeyen bir fee burn
+  gerçek arzı zaten düşürmüş olabilir.
+- Kırmızı ekonomik hüküm için **güvenilir bir arz alt sınırının da** `A`'yı aşması gerekir.
+- Minter census eksikse (`CFG-N03`) `SUFFICIENT_UPPER_BOUND` **verilmez** — `readAllowList(address)`
+  bir nokta sorgusudur, allowlist enumerable değildir, dolayısıyla tek adres okuması münhasırlık
+  kanıtı **değildir**.
+
+### verdict-baseline-drift
+
+`CFG-D01` (approved baseline'dan sapma) kritik kontrollerde konfigürasyon ihlalidir:
+proxy implementation/beacon/admin slot, implementation code hash, contract address/linkage,
+chain identity/genesis, decimals/scaling, minter allowlist, admin/upgrade authority.
+
+`CFG-D02` (unapproved candidate) **ihlal değildir** ama otomatik güvenilir de değildir:
+permissionless kaydolan bir remote **operatör incelemesi** bekler. Manifest'e eklenmesi
+review'dan geçer; kod yolu bunu kendiliğinden yapmaz.
+
+`CFG-D03` (kontrol kurulamadı) asla "eşleşti" sayılmaz.

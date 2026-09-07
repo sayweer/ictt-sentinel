@@ -16,7 +16,9 @@
     "mayDependOn": [
       "@ictt-sentinel/domain",
       "@ictt-sentinel/config",
-      "@ictt-sentinel/evidence"
+      "@ictt-sentinel/evidence",
+      "@ictt-sentinel/state-machine",
+      "@ictt-sentinel/invariant-core"
     ]
   },
   "main": "./dist/index.js",
@@ -34,7 +36,9 @@
   "dependencies": {
     "@ictt-sentinel/domain": "workspace:*",
     "@ictt-sentinel/config": "workspace:*",
-    "@ictt-sentinel/evidence": "workspace:*"
+    "@ictt-sentinel/evidence": "workspace:*",
+    "@ictt-sentinel/state-machine": "workspace:*",
+    "@ictt-sentinel/invariant-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
