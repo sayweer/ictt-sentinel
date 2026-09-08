@@ -45,12 +45,22 @@ const direct = (): boolean => {
 };
 
 if (direct()) {
-  const api = await startApi(process.env);
-  const stop = (): void => {
-    void api.close().finally(() => {
-      process.exitCode = 0;
-    });
-  };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
+  try {
+    const api = await startApi(process.env);
+    const stop = (): void => {
+      void api.close().then(
+        () => {
+          process.exitCode = 0;
+        },
+        () => {
+          process.exitCode = 1;
+        },
+      );
+    };
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  } catch {
+    process.stderr.write('ictt-sentinel-api failed to start\n');
+    process.exitCode = 1;
+  }
 }

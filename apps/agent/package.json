@@ -27,6 +27,9 @@
     ]
   },
   "main": "./dist/index.js",
+  "bin": {
+    "ictt-sentinel-agent": "./dist/main.js"
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "dist"

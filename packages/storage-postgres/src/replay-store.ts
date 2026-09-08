@@ -199,16 +199,38 @@ export const readCompleteness = async (
   db: Db,
   deploymentId: string,
   chainKey: string,
-): Promise<{ status: string; verdict: string; gapCount: number; reasons: string[] } | null> => {
+): Promise<{
+  status: string;
+  verdict: string;
+  gapCount: number;
+  reasons: string[];
+  lastSuccessAt: Date | null;
+  evaluatedAt: Date;
+} | null> => {
   const rows = await db.sql<
-    { status: string; verdict: string; gap_count: number; reasons: string[] }[]
+    {
+      status: string;
+      verdict: string;
+      gap_count: number;
+      reasons: string[];
+      last_success_at: Date | null;
+      evaluated_at: Date;
+    }[]
   >`
-    select status, verdict, gap_count, reasons from projection_replay_completeness
+    select status, verdict, gap_count, reasons, last_success_at, evaluated_at
+    from projection_replay_completeness
     where deployment_id = ${deploymentId} and chain_key = ${chainKey}
   `;
   const r = rows[0];
   return r
-    ? { status: r.status, verdict: r.verdict, gapCount: r.gap_count, reasons: r.reasons }
+    ? {
+        status: r.status,
+        verdict: r.verdict,
+        gapCount: r.gap_count,
+        reasons: r.reasons,
+        lastSuccessAt: r.last_success_at,
+        evaluatedAt: r.evaluated_at,
+      }
     : null;
 };
 

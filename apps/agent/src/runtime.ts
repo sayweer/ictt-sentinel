@@ -51,7 +51,19 @@ export interface TickReport {
   readonly reasonCodes: readonly string[];
   readonly chains: readonly { readonly chainKey: string; readonly report: ReplayReport }[];
   readonly observationDigest: string;
+  readonly evaluationId: string | null;
   readonly alerted: boolean;
+}
+
+export interface EvaluationObservation {
+  readonly deploymentId: string;
+  readonly verdict: Verdict;
+  readonly rawVerdict: Verdict;
+  readonly stale: boolean;
+  readonly reportable: boolean;
+  readonly reasonCodes: readonly string[];
+  readonly chains: readonly { readonly chainKey: string; readonly report: ReplayReport }[];
+  readonly observationDigest: string;
 }
 
 /**
@@ -96,6 +108,7 @@ export interface TickDeps {
    */
   readonly lastSuccessAt: Map<string, number>;
   readonly outboxIdFor: (dedupKey: string) => string;
+  readonly recordEvaluation?: (observation: EvaluationObservation) => Promise<string | null>;
   readonly evidenceSchemaVersion: string;
   readonly signal: AbortSignal;
 }
@@ -170,6 +183,20 @@ export const runDeploymentTick = async (
 
   const fresh = applyFreshness(rawVerdict, observedAtMs, now.getTime(), plan.freshness);
   const digest = observationDigest(plan.deploymentId, chains);
+  const evaluation: EvaluationObservation = {
+    deploymentId: plan.deploymentId,
+    verdict: fresh.verdict,
+    rawVerdict,
+    stale: fresh.stale,
+    reportable: fresh.reportable,
+    reasonCodes: [...reasons, ...fresh.reasonCodes],
+    chains,
+    observationDigest: digest,
+  };
+  // The durable evaluation is written before its alert references it. A crash
+  // can therefore leave an unpaged evaluation for the next outbox pass, but it
+  // can never leave a dangling alert that points at no judgement.
+  const evaluationId = (await deps.recordEvaluation?.(evaluation)) ?? null;
 
   deps.registry.set(AGENT_METRICS.evaluationAge, fresh.ageSeconds, {
     deployment: plan.deploymentId,
@@ -194,14 +221,14 @@ export const runDeploymentTick = async (
   const previous = deps.previousVerdict.get(plan.deploymentId) ?? null;
   const signal: AlertSignal = {
     deploymentId: plan.deploymentId,
-    evaluationId: null,
+    evaluationId,
     ruleId: 'replay-completeness',
     reasonCode: reasons[0] ?? `REPLAY_${fresh.verdict}`,
     previousVerdict: previous ?? 'NONE',
     verdict: fresh.verdict,
     evidenceHash: digest,
     evidenceSchemaVersion: deps.evidenceSchemaVersion,
-    reasonCodes: [...reasons, ...fresh.reasonCodes],
+    reasonCodes: evaluation.reasonCodes,
     observedAt: new Date(observedAtMs).toISOString(),
     expiresAt: new Date(now.getTime() + plan.freshness.expiresAfterSeconds * 1000).toISOString(),
     fresh: !fresh.stale,
@@ -218,6 +245,7 @@ export const runDeploymentTick = async (
     reasonCodes: signal.reasonCodes,
     chains,
     observationDigest: digest,
+    evaluationId,
     alerted: raised.notified,
   };
 };

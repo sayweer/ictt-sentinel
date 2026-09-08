@@ -59,7 +59,10 @@ export const deliver = async (options: DeliverOptions): Promise<DeliveryReport> 
   const { target, payload, url, transport, timeoutMs, signal } = options;
   const base = { targetId: target.targetId, httpStatus: null } as const;
 
-  if (!meetsThreshold(target, payload.severity))
+  // A recovery closes an incident that already crossed the target's threshold.
+  // Its current severity is OK, but filtering on OK would page the breach and
+  // then suppress the message that tells the responder it ended.
+  if (payload.state !== 'recovered' && !meetsThreshold(target, payload.severity))
     return { ...base, outcome: 'skipped', reason: 'below target severity threshold' };
   if (url === undefined || url === '')
     return {

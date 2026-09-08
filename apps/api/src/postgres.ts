@@ -14,7 +14,7 @@ import {
 } from '@ictt-sentinel/storage-postgres';
 import type { ApiStore, HostedRecord } from './store.js';
 
-const HOSTED_SCHEMA_VERSION = 7;
+const HOSTED_SCHEMA_VERSION = 8;
 
 const hosted = (r: Awaited<ReturnType<typeof readHostedEvaluations>>[number]): HostedRecord => ({
   deploymentId: r.deploymentId,

@@ -85,7 +85,7 @@ export const ingestHostedEvaluation = async (
     const existing = await tx<{ payload_hash: string }[]>`
       select payload_hash from hosted_evaluations
       where tenant_id = ${input.tenantId} and deployment_id = ${input.deploymentId}
-        and evidence_digest = ${input.evidenceDigest} for update
+        and evidence_digest = ${input.evidenceDigest}
     `;
     if (existing[0] !== undefined && existing[0].payload_hash !== input.payloadHash)
       throw new IdempotencyPayloadConflictError(idempotencyKey);

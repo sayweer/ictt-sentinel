@@ -17,7 +17,7 @@ import { advisoryLockKey, type Db, type Tx } from './client.js';
 export type AlertLifecycleState =
   'first_seen' | 'repeated' | 'escalated' | 'acknowledged' | 'recovered';
 
-export type OutboxStatus = 'pending' | 'sent' | 'failed' | 'abandoned';
+export type OutboxStatus = 'pending' | 'sent' | 'failed' | 'abandoned' | 'cancelled';
 
 export interface AlertOutboxRow {
   readonly outboxId: string;
@@ -159,7 +159,8 @@ export const foldAlert = async (
     if (decision.closeIncident && incidentRows.length > 0) {
       const closedRows = await tx`
         update alert_outbox
-        set lifecycle_state = 'recovered', recovered_at = coalesce(recovered_at, now())
+        set lifecycle_state = 'recovered', recovered_at = coalesce(recovered_at, now()),
+            status = case when status = 'pending' then 'cancelled' else status end
         where incident_key = ${keys.incidentKey} and lifecycle_state <> 'recovered'
         returning outbox_id
       `;

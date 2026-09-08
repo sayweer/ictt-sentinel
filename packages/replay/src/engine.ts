@@ -4,6 +4,7 @@ import {
   AcceptedHashConflictError,
   ingestBatch,
   readCheckpoint,
+  readCompleteness,
   readCommittedRanges,
   recordDataQualityIncident,
   recordRemoteCandidate,
@@ -155,6 +156,7 @@ export const runReplay = async (
 ): Promise<ReplayReport> => {
   const head = await port.agreedAcceptedHead(config.chainKey);
   const checkpoint = await readCheckpoint(db, config.deploymentId, config.chainKey);
+  const priorCompleteness = await readCompleteness(db, config.deploymentId, config.chainKey);
   const checkpointBefore = checkpoint?.lastBlockNumber ?? null;
 
   // Resume: one block past the last committed checkpoint, or the manifest start.
@@ -183,7 +185,9 @@ export const runReplay = async (
   const reports: RangeReport[] = [];
   const reasons: ReplayReason[] = [];
   let integrityConflict = false;
-  let lastSuccessAt: Date | null = null;
+  // Persisted freshness is part of restart safety. A new process continues to
+  // age the newest complete observation instead of resetting it to "never".
+  let lastSuccessAt: Date | null = priorCompleteness?.lastSuccessAt ?? null;
 
   while (queue.length > 0) {
     const range = queue.shift();

@@ -27,6 +27,9 @@ export const chainKeyOf = (deploymentId: string, chainName: string): string =>
   `${deploymentId}/${chainName}`;
 
 export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan => {
+  if (manifest.spec.baseline.state !== 'approved') {
+    throw new Error('agent requires an operator-approved manifest baseline');
+  }
   const deploymentId = manifest.metadata.name;
   const sides = [
     {

@@ -80,7 +80,7 @@ class MemoryStore implements ApiStore {
       prior = this.idempotency.get(id);
     if (prior !== undefined) {
       if (prior.payloadHash !== input.payloadHash) throw new Error('conflict');
-      return Promise.resolve({ status: 200, body: { accepted: true, duplicate: true } });
+      return Promise.resolve(prior.response);
     }
     const same = this.records.find(
       (r) =>
@@ -172,7 +172,7 @@ describe('hosted evidence API', () => {
     const { app, headers, store } = fixture();
     const evidence = bundle();
     expect((await ingest(app, { level: 'approved-full', body: evidence })).statusCode).toBe(201);
-    expect((await ingest(app, { level: 'approved-full', body: evidence })).statusCode).toBe(200);
+    expect((await ingest(app, { level: 'approved-full', body: evidence })).statusCode).toBe(201);
     const status = await app.inject({ url: '/v1/deployments/quickstart-healthy/status', headers });
     expect(jsonObject(status)['status']).toMatchObject({
       verifyStatus: 'verified',
