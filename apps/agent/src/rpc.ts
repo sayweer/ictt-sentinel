@@ -15,7 +15,9 @@ import type { EndpointRead } from './log-source.js';
  * Every request is built by `@ictt-sentinel/rpc-quorum` from a domain operation
  * and checked against the query-only allowlist before it leaves. There is no
  * function here that takes a method name, so no caller - and no future caller -
- * can send `eth_sendRawTransaction` through this (CLAUDE.md 3).
+ * can push a state-changing method through this. The allowlist itself lives in
+ * `packages/rpc-quorum/src/methods.ts`, which is the single file in the
+ * repository permitted to name the forbidden methods (CLAUDE.md 3).
  *
  * The response is treated as hostile input: the URL is validated first, the
  * redirect is refused, the body is size-capped while streaming, and the decoded

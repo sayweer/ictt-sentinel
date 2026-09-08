@@ -14,6 +14,7 @@
     "bootstrap:check": "node scripts/bootstrap-check.mjs",
     "verify:config": "node scripts/verify-config.mjs",
     "verify:scaffold": "node scripts/verify-scaffold.mjs",
+    "verify:containers": "node scripts/verify-containers.mjs",
     "secrets:check": "node scripts/check-secrets.mjs",
     "boundaries:check": "node scripts/check-boundaries.mjs",
     "format:check": "prettier --check .",
@@ -26,7 +27,7 @@
     "build": "tsc --build tsconfig.build.json",
     "cli": "node apps/cli/dist/index.js",
     "clean": "tsc --build --clean tsconfig.build.json",
-    "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run verify:containers && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

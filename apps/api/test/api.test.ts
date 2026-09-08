@@ -271,7 +271,9 @@ describe('hosted evidence API', () => {
           method: 'POST',
           url: '/v1/rpc',
           headers,
-          payload: { method: 'eth_sendTransaction' },
+          // Any method at all: the assertion is that the route does not exist,
+          // so there is nothing here for an arbitrary RPC method to reach.
+          payload: { method: 'eth_blockNumber' },
         })
       ).statusCode,
     ).toBe(404);

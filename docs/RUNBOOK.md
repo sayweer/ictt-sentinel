@@ -103,6 +103,11 @@ Geri yükleme sonrası **zorunlu** kontroller:
 | `replay_checkpoints`, `replay_ranges` | Operasyonel. Serbestçe güncellenir; geçmişi yoktur. |
 | `projection_*` | Türetilmiş. İstenildiği zaman düşürülüp yeniden kurulabilir. |
 | `alert_outbox`, `alert_deliveries` | Teslim edilmiş kayıtlar 90 gün sonra budanabilir. |
+| `tenants`, `deployment_tenants`, `api_tokens` | Operatörce yönetilen yetkilendirme verisi. Token **hash** olarak durur; iptal `revoked_at` ile yapılır, satır silinmez. |
+| `hosted_evaluations` | Hosted plane'e **rıza ile** yüklenmiş kayıt. Operatör talebiyle silinebilir; local kanıt bundan bağımsızdır ve etkilenmez. |
+| `api_idempotency` | Operasyonel, TTL'li. `expires_at` geçince süpürülür (`sweepIdempotency`). |
+| `webhook_nonces` | Operasyonel, TTL'li. Yalnız replay penceresi kadar tutulur (`sweepNonces`). |
+| `api_audit_log` | Erişim kaydı. **Silinmez**, arşivlenir; runtime rolünün `DELETE` yetkisi yoktur. |
 
 Runtime rolünün ham/hüküm tablolarında `DELETE` yetkisi olmadığı için budama, migrator yetkisiyle
 ayrı ve kayıt altına alınan bir işlemdir.
@@ -229,7 +234,34 @@ verdict kolonu **yoktur**, dolayısıyla satırda kanıta terfi edecek hiçbir �
 
 ---
 
-## 10. Verdict triage
+## 10. Veri paylaşımı, rıza ve data minimization
+
+Hosted plane **opsiyoneldir ve local truth authority'nin yerine geçmez.** Hosted kapalıyken
+local evaluation, evidence üretimi ve alarm çalışmaya devam eder; bu bir kabul kriteridir ve
+testlidir.
+
+Ne kadarının makineden çıkacağını **operatör seçer**. Varsayılan en kısıtlı uçtur ve hosted
+plane'i açmak bunu kendiliğinden değiştirmez:
+
+| Seviye | Dışarı çıkan | Çıkmayan |
+|---|---|---|
+| `local-only` (**varsayılan**) | Hiçbir şey. Ağa çıkılmaz. | Her şey local kalır. |
+| `sanitized-metadata` | Deployment id, evidence content hash, dört hüküm alanı, reason kodları, freshness ve **sayılar** (chain/rule/message adedi). | Adres, block hash, log, RPC endpoint, manifest, ham payload. |
+| `approved-full` | Tam evidence bundle — çünkü operatör bir denetçinin ihtiyacı olduğuna **karar vermiştir**. | Secret değeri; bundle zaten secret-free üretilir ve gönderimden önce yeniden denetlenir. |
+
+Kurallar:
+
+- Seviye `ICTT_SENTINEL_SHARING_LEVEL` ile verilir; tanınmayan değer **başlatmayı reddeder**,
+  sessizce varsayılana düşmez.
+- Projeksiyon **allowlist ile kurulur**, alan silerek değil. Yukarı akışta eklenen yeni bir alan
+  bu yüzden kendiliğinden dışarı sızmaz.
+- Notifier (Slack/PagerDuty/generic webhook) seviyeden bağımsız olarak yalnız sanitize edilmiş
+  özet, reason, severity, freshness ve bir **evidence referansı** alır — bundle'ın kendisini asla.
+- Hosted plane private RPC'ye erişmez ve erişmesi gerekmez.
+- Rızanın geri alınması: seviyeyi düşürmek sonraki yüklemeleri durdurur; hâlihazırda yüklenmiş
+  `hosted_evaluations` satırları operatör talebiyle silinir. Local kanıt bu işlemden etkilenmez.
+
+## 11. Verdict triage
 
 ### verdict-triage
 

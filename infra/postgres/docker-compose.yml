@@ -1,6 +1,4 @@
-# Local PostgreSQL for development only.
-#
-# Production application containers are NOT in scope here.
+# Local PostgreSQL, watcher agent and hosted API for development only.
 #
 #   cp .env.example .env.local        # then set POSTGRES_PASSWORD
 #   docker compose --env-file ../../.env.local -f docker-compose.yml up -d
@@ -15,8 +13,21 @@
 
 name: ictt-sentinel-local
 
+x-ictt-sentinel-service-security: &ictt-sentinel-service-security
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777,noexec,nosuid,nodev
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 64
+  mem_limit: 512m
+  cpus: 1.0
+  init: true
+
 services:
-  postgres:
+  ictt-sentinel-postgres:
     # Pinned to a digest, not just a tag: a tag can be repointed, and this is a
     # security tool's own dependency. Tag shown for readability only.
     # postgres:17.11-alpine, pushed 2026-08-16.
@@ -58,6 +69,97 @@ services:
       - password_encryption=scram-sha-256
       - -c
       - listen_addresses=*
+
+  ictt-sentinel-migrate:
+    <<: *ictt-sentinel-service-security
+    profiles: [migrate]
+    image: ictt-sentinel-migrate:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Containerfile
+      target: migrate
+    container_name: ictt-sentinel-migrate
+    restart: 'no'
+    depends_on:
+      ictt-sentinel-postgres:
+        condition: service_healthy
+    environment:
+      ICTT_SENTINEL_DATABASE_URL: '${ICTT_SENTINEL_MIGRATOR_DATABASE_URL:?ICTT_SENTINEL_MIGRATOR_DATABASE_URL is required}'
+
+  ictt-sentinel-agent:
+    <<: *ictt-sentinel-service-security
+    profiles: [agent]
+    image: ictt-sentinel-agent:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Containerfile
+      target: agent
+    container_name: ictt-sentinel-agent
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      ictt-sentinel-postgres:
+        condition: service_healthy
+    env_file:
+      - path: '${ICTT_SENTINEL_AGENT_ENV_FILE:?ICTT_SENTINEL_AGENT_ENV_FILE is required}'
+        required: true
+    environment:
+      ICTT_SENTINEL_DATABASE_URL: '${ICTT_SENTINEL_AGENT_DATABASE_URL:?ICTT_SENTINEL_AGENT_DATABASE_URL is required}'
+      ICTT_SENTINEL_MANIFEST_PATH: /etc/ictt-sentinel/deployment.yml
+      ICTT_SENTINEL_POLICY_PATH: /etc/ictt-sentinel/policy.yml
+      ICTT_SENTINEL_SHARING_LEVEL: '${ICTT_SENTINEL_SHARING_LEVEL:-local-only}'
+      ICTT_SENTINEL_OBSERVE_ENABLED: 'true'
+      ICTT_SENTINEL_OBSERVE_HOST: 0.0.0.0
+      ICTT_SENTINEL_OBSERVE_PORT: '9464'
+    volumes:
+      - '${ICTT_SENTINEL_MANIFEST_FILE:?ICTT_SENTINEL_MANIFEST_FILE is required}:/etc/ictt-sentinel/deployment.yml:ro'
+      - '${ICTT_SENTINEL_POLICY_FILE:?ICTT_SENTINEL_POLICY_FILE is required}:/etc/ictt-sentinel/policy.yml:ro'
+    ports:
+      - '127.0.0.1:${ICTT_SENTINEL_AGENT_OBSERVE_PORT:-9464}:9464'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:9464/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  ictt-sentinel-api:
+    <<: *ictt-sentinel-service-security
+    profiles: [api]
+    image: ictt-sentinel-api:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Containerfile
+      target: api
+    container_name: ictt-sentinel-api
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      ictt-sentinel-postgres:
+        condition: service_healthy
+    env_file:
+      - path: '${ICTT_SENTINEL_API_ENV_FILE:?ICTT_SENTINEL_API_ENV_FILE is required}'
+        required: true
+    environment:
+      ICTT_SENTINEL_API_DATABASE_URL: '${ICTT_SENTINEL_API_DATABASE_URL:?ICTT_SENTINEL_API_DATABASE_URL is required}'
+      ICTT_SENTINEL_API_HOST: 0.0.0.0
+      ICTT_SENTINEL_API_PORT: '8080'
+    ports:
+      - '127.0.0.1:${ICTT_SENTINEL_API_PUBLIC_PORT:-8080}:8080'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   postgres-data:

@@ -25,6 +25,14 @@ export default defineConfig({
           name: 'unit',
           include: ['{apps,packages}/*/test/**/*.test.ts'],
           environment: 'node',
+          // Lower group runs first, and alone. The integration project contains
+          // architecture.test.ts, which writes deliberate boundary violations
+          // into packages/*/src to prove the checker catches them. The CLI
+          // reliability test content-addresses those same trees to derive the
+          // build identity, so with both projects in parallel one run could see
+          // a scratch file the next did not and the two checksums would differ.
+          // Separating the groups removes the race without relaxing either test.
+          sequence: { groupOrder: 0 },
         },
       },
       {
@@ -33,6 +41,7 @@ export default defineConfig({
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
+          sequence: { groupOrder: 1 },
         },
       },
     ],

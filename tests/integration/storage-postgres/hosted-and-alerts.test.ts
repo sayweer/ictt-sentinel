@@ -38,6 +38,16 @@ beforeAll(async () => {
     insert into deployment_tenants (deployment_id, tenant_id, sharing_level)
     values (${DEPLOYMENT}, 'tenant-a', 'approved-full')
   `;
+  // A second deployment, so the restart case cannot interfere with the
+  // lifecycle assertions on the primary one.
+  await db.migrator.sql`
+    insert into deployments (deployment_id, manifest_hash, asset_mode)
+    values ('restart-case', ${digest('c0')}, 'canonical-erc20')
+  `;
+  await db.migrator.sql`
+    insert into deployment_tenants (deployment_id, tenant_id, sharing_level)
+    values ('restart-case', 'tenant-a', 'sanitized-metadata')
+  `;
   await db.migrator.sql`
     insert into api_tokens
       (token_id, tenant_id, token_hash, scopes, description, created_at, expires_at)
@@ -230,6 +240,50 @@ describe('durable alert lifecycle', () => {
     expect(rows.find((row) => row.status === 'pending')).toMatchObject({
       verdictTo: 'OK',
       lifecycleState: 'recovered',
+    });
+  });
+
+  it('does not page again for a breach it already opened before a restart', async () => {
+    // A restarted agent has no in-memory verdict history, so it re-observes the
+    // same live breach as a NONE -> CRITICAL transition. That is a different
+    // dedup key, and a naive outbox would page the on-call engineer a second
+    // time for an incident they are already handling.
+    const restarted = await raiseAlert(
+      db.runtime,
+      signal({
+        deploymentId: 'restart-case',
+        previousVerdict: 'NONE',
+        verdict: 'CRITICAL',
+        evidenceHash: digest('c1'),
+      }),
+      NOW,
+      (key) => key,
+    );
+    expect(restarted.created).toBe(true);
+    expect(restarted.notified).toBe(true);
+
+    const afterRestart = await raiseAlert(
+      db.runtime,
+      signal({
+        deploymentId: 'restart-case',
+        previousVerdict: 'NONE',
+        verdict: 'CRITICAL',
+        // New tick, new observation digest: a different notification identity
+        // for what is still the same open incident.
+        evidenceHash: digest('c2'),
+      }),
+      new Date(NOW.getTime() + 5_000),
+      (key) => key,
+    );
+    expect(afterRestart.dedupKey).not.toBe(restarted.dedupKey);
+    expect(afterRestart.incidentKey).toBe(restarted.incidentKey);
+    expect(afterRestart.notified).toBe(false);
+
+    const rows = await readAlerts(db.runtime, 'restart-case', 10);
+    expect(rows.filter((row) => row.status === 'pending')).toHaveLength(1);
+    expect(rows.find((row) => row.evidenceDigest === digest('c2'))).toMatchObject({
+      lifecycleState: 'repeated',
+      status: 'sent',
     });
   });
 });

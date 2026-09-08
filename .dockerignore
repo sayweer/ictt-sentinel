@@ -31,6 +31,7 @@ dist/
 build/
 coverage/
 .pnpm-store/
+.tooling/
 *.tsbuildinfo
 
 # Veritabanı verisi ve evidence çıktıları

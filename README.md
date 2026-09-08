@@ -61,6 +61,21 @@ Açık bildirimi: kök `SECURITY.md`.
 | Hosted evidence plane | Alarm, rol, retention, paylaşım | Yalnız operatörce seçilen metadata |
 | Library / policy pack | Başka güvenlik motorlarına kural üretir | Yürütme başka motorda |
 
+### Veri paylaşım seviyesi — varsayılan `local-only`
+
+Hosted plane opsiyoneldir; kapalıyken local evaluation, evidence ve alarm çalışmaya devam eder.
+Makineden ne çıkacağını operatör seçer ve **hosted'ı açmak bu seçimi kendiliğinden değiştirmez**:
+
+| `ICTT_SENTINEL_SHARING_LEVEL` | Dışarı çıkan |
+|---|---|
+| `local-only` (varsayılan) | Hiçbir şey — ağa çıkılmaz |
+| `sanitized-metadata` | Hüküm alanları, reason kodları, freshness, evidence content hash ve sayımlar |
+| `approved-full` | Tam evidence bundle — yalnız operatör açıkça onayladığında |
+
+Adres, block hash, ham log, RPC endpoint ve manifest yalnız `approved-full` seviyesinde ve yalnız
+bundle'ın içinde çıkar. Notifier'lar (Slack/PagerDuty/webhook) seviyeden bağımsız olarak yalnız
+sanitize özet + evidence **referansı** alır. Ayrıntı ve rızanın geri alınması: `docs/RUNBOOK.md` §10.
+
 ## MVP kapsamı ve non-goals
 
 **MVP (P0) hedefi:** iki local/Fuji L1; canonical `ERC20TokenRemote` reconciliation;
