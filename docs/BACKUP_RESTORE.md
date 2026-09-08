@@ -69,7 +69,7 @@ restore'dur (§4).
 pg_dump -U <user> -d ictt_sentinel -Fc -f ictt_sentinel-$(date -u +%Y%m%dT%H%M%SZ).dump
 ```
 
-Tatbikat: 8 migration uygulanmış boş şema için `91548` bayt, `0.08 s`.
+Son tatbikat: 8 migration uygulanmış boş şema için `91553` bayt.
 
 Yedek **şifrelenerek** ve veritabanı sunucusundan ayrı bir yerde saklanır.
 İçinde credential yoktur — `rpc_endpoints` tablosu env değişkeni **adı** tutar,

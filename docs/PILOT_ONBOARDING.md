@@ -141,8 +141,9 @@ pnpm run cli -- evidence verify --file evidence-out/<digest>.evidence.json
 Bundle **yeniden üretilebilir ve denetime paylaşılabilir**; tamper-proof
 değildir. Doğrulayıcı neyi doğrulayamadığını kendi çıktısında yazar.
 
-Bundle'ı release gate'ine ekle. Ölçüm: bir fixture için ilk bundle **0.13-0.18 s**
-(M14 tatbikatı, 3 çalıştırma).
+Bundle'ı release gate'ine ekle. Ölçüm: fresh CLI process ile bir fixture için
+ilk bundle **0.37-0.46 s** (M14 tatbikatı, 3 çalıştırma); üç JSON dosyasının
+SHA-256 değeri aynıydı.
 
 ---
 

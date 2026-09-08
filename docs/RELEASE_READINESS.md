@@ -16,6 +16,11 @@ mainnet hazır olma iddiası değildir; kurulum ve baseline onayı kullanıcıya
 | Dayanıklılık | crash/restart, outbox retry, projection rebuild, migration ve restore | integration suite; `docs/BACKUP_RESTORE.md` |
 | Kaynak bütçesi | 10k pure replay < 5 s; p95 accepted-observation değerlendirme < 50 ms; RSS < 512 MiB | `pnpm run release:benchmark` |
 
+M14 final yerel ölçümünde ilk pure evidence üretimi `2.45 ms`, p95 değerlendirme
+`0.17 ms`, 10k replay `1009.86 ms`, heap artışı `0.52 MiB` ve RSS `70.27 MiB`
+oldu. Fresh CLI process ile üç ilk evidence koşusu `0.37-0.46 s` sürdü ve aynı
+JSON SHA-256 değerini üretti.
+
 Kapılardan biri başarısızsa etiket `BLOCKED` olur. Critical/high bulgu için
 suppress bayrağı yoktur; istisna ancak kullanıcı onaylı ve burada kayıtlı risk
 kabulüyle değerlendirilebilir. Şu anda risk kabulü yoktur.
