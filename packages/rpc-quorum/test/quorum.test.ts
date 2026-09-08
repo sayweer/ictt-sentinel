@@ -29,9 +29,15 @@ const b32 = (s: string): string => `0x${s.repeat(64).slice(0, 64)}`;
 const CHAIN = b32('1');
 const HASH_A = b32('a');
 const HASH_B = b32('b');
+const GENESIS = b32('0');
 const NOW = 1_000_000;
 
-const expected: ExpectedIdentity = { blockchainId: CHAIN, evmChainId: 43114n, networkId: 1n };
+const expected: ExpectedIdentity = {
+  blockchainId: CHAIN,
+  genesisHash: GENESIS,
+  evmChainId: 43114n,
+  networkId: 1n,
+};
 const policy: QuorumPolicy = {
   minIndependentTrustDomains: 2,
   maxHeadLagBlocks: 5n,
@@ -43,6 +49,7 @@ const witness = (over: Partial<WitnessObservation> = {}): WitnessObservation => 
   trustDomain: over.trustDomain ?? 'provider-alpha',
   providerGroup: over.providerGroup ?? `${over.trustDomain ?? 'provider-alpha'}-prod`,
   blockchainId: CHAIN,
+  genesisHash: GENESIS,
   evmChainId: 43114n,
   networkId: 1n,
   headBlockNumber: 1000n,
@@ -146,6 +153,7 @@ describe('same height, different hash is never resolved by choosing one', () => 
 describe('endpoints serving the wrong chain are separated out', () => {
   it.each([
     ['blockchainId', { blockchainId: b32('9') }, 'wrong-blockchain-id'],
+    ['genesis hash', { genesisHash: b32('9') }, 'wrong-genesis-hash'],
     ['evm chain id', { evmChainId: 1n }, 'wrong-evm-chain-id'],
     ['network id', { networkId: 5n }, 'wrong-network-id'],
   ])('rejects a witness with the wrong %s', (_l, over, reason) => {
@@ -157,6 +165,21 @@ describe('endpoints serving the wrong chain are separated out', () => {
     );
     expect(r.rejected.map((x) => x.reason)).toContain(reason);
     expect(r.outcome).toBe('insufficient-witnesses');
+  });
+
+  it('collapses transitive shared provider and trust relationships', () => {
+    const r = evaluateQuorum(
+      [
+        witness({ endpointId: 'e1', trustDomain: 'a', providerGroup: 'p1' }),
+        witness({ endpointId: 'e2', trustDomain: 'a', providerGroup: 'p2' }),
+        witness({ endpointId: 'e3', trustDomain: 'b', providerGroup: 'p2' }),
+      ],
+      expected,
+      policy,
+      NOW,
+    );
+    expect(r.outcome).toBe('insufficient-witnesses');
+    expect(r.agreeingEndpointIds).toHaveLength(1);
   });
 
   it('rejects a witness that never established an identity', () => {

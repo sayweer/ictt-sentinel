@@ -1,5 +1,6 @@
 import {
   buildPinnedContext,
+  assertNoIntegrityConflict,
   decideFinalityBasis,
   evaluateQuorum,
   finalityFromConfirmationDepth,
@@ -10,7 +11,12 @@ import {
   type QuorumPolicy,
   type WitnessObservation,
 } from '@ictt-sentinel/rpc-quorum';
-import { agree, assessCompleteness, findRangeGaps } from '@ictt-sentinel/replay';
+import {
+  agree,
+  assessCompleteness,
+  classifyObservation,
+  findRangeGaps,
+} from '@ictt-sentinel/replay';
 import { defineScenarios } from '../registry.js';
 
 /**
@@ -27,9 +33,11 @@ const NOW = Date.parse('2026-06-01T00:00:00.000Z');
 const HOME_ICM = `0x${'aa'.repeat(32)}`;
 const HASH_A = `0x${'11'.repeat(32)}`;
 const HASH_B = `0x${'22'.repeat(32)}`;
+const GENESIS = `0x${'00'.repeat(32)}`;
 
 const EXPECTED: ExpectedIdentity = {
   blockchainId: HOME_ICM,
+  genesisHash: GENESIS,
   evmChainId: 43_114n,
   networkId: 1n,
 };
@@ -44,6 +52,7 @@ const witness = (o: Partial<WitnessObservation> & { endpointId: string }): Witne
   trustDomain: o.trustDomain ?? 'alpha',
   providerGroup: o.providerGroup ?? `${o.trustDomain ?? 'alpha'}-1`,
   blockchainId: HOME_ICM,
+  genesisHash: GENESIS,
   evmChainId: 43_114n,
   networkId: 1n,
   headBlockNumber: 1_000n,
@@ -142,6 +151,27 @@ export const rpcScenarios = defineScenarios([
           endpointId: 'ep-2',
           trustDomain: 'beta',
           blockchainId: `0x${(43_114).toString(16).padStart(64, '0')}`,
+        }),
+      ]),
+  },
+  {
+    id: 'rpc/wrong-genesis-anchor',
+    title: 'A witness on the right IDs but wrong genesis anchor is refused',
+    corpus: 'rpc',
+    provenance: 'docs/DATA_MODEL.md 2.1; apps/cli/src/doctor.ts identity probe',
+    pinned: { expectedGenesis: GENESIS, witnessGenesis: `0x${'99'.repeat(32)}` },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      reasonCodes: ['REJECTED_WRONG_GENESIS_HASH'],
+      exitCode: 3,
+    },
+    run: () =>
+      quorumRun([
+        witness({ endpointId: 'ep-1' }),
+        witness({
+          endpointId: 'ep-2',
+          trustDomain: 'beta',
+          genesisHash: `0x${'99'.repeat(32)}`,
         }),
       ]),
   },
@@ -323,6 +353,85 @@ export const rpcScenarios = defineScenarios([
         protocolStatus: 'UNKNOWN',
         exitCode: 3,
         holds: read.ok ? [] : ['discarded'],
+      };
+    },
+  },
+  {
+    id: 'rpc/accepted-hash-integrity-conflict',
+    title: 'A different hash at an accepted height raises an integrity incident',
+    corpus: 'rpc',
+    provenance: 'docs/INVARIANTS.md 9; packages/rpc-quorum/src/quorum.ts',
+    pinned: { height: '1000', acceptedHash: HASH_A, laterHash: HASH_B },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      dataStatus: 'DIVERGENT',
+      reasonCodes: ['RPC_INTEGRITY_CONFLICT'],
+      exitCode: 3,
+      holds: ['accepted-history-preserved'],
+    },
+    run: () => {
+      try {
+        assertNoIntegrityConflict(
+          { blockNumber: 1_000n, blockHash: HASH_A },
+          { blockNumber: 1_000n, blockHash: HASH_B, endpointId: 'ep-2', trustDomain: 'beta' },
+        );
+        return {};
+      } catch (error) {
+        const code =
+          error !== null && typeof error === 'object' && 'code' in error
+            ? String(error.code)
+            : 'UNEXPECTED';
+        return {
+          protocolStatus: 'UNKNOWN',
+          dataStatus: 'DIVERGENT',
+          reasonCodes: [code],
+          exitCode: 3,
+          holds: ['accepted-history-preserved'],
+        };
+      }
+    },
+  },
+  {
+    id: 'rpc/noncanonical-candidate-block',
+    title: 'A candidate block cannot enter the canonical replay path',
+    corpus: 'gap',
+    provenance: 'packages/replay/src/range.ts; docs/DATA_MODEL.md 2.1',
+    pinned: { blockNumber: '1000', observedClass: 'candidate' },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      dataStatus: 'PARTIAL',
+      reasonCodes: ['NONCANONICAL_BLOCK_REJECTED'],
+      exitCode: 3,
+      holds: ['candidate-orphaned-from-truth-path'],
+    },
+    run: () => {
+      const outcome = classifyObservation({
+        providerGroup: 'alpha-1',
+        range: { fromBlock: 1_000n, toBlock: 1_000n },
+        startBlockHash: HASH_A,
+        endBlockHash: HASH_A,
+        logCount: 0,
+        logs: [],
+        blocks: [
+          {
+            chainKey: 'fixture/home',
+            blockHash: HASH_A,
+            blockNumber: 1_000n,
+            parentHash: HASH_B,
+            blockTimestamp: 1_780_272_000n,
+            observedClass: 'candidate',
+            observedAt: new Date(NOW),
+          },
+        ],
+        complete: true,
+        viaArchive: false,
+      });
+      return {
+        protocolStatus: 'UNKNOWN',
+        dataStatus: 'PARTIAL',
+        reasonCodes: outcome.ok ? [] : [outcome.reason],
+        exitCode: 3,
+        holds: outcome.ok ? [] : ['candidate-orphaned-from-truth-path'],
       };
     },
   },

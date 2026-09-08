@@ -21,6 +21,8 @@ export interface WitnessObservation {
   readonly providerGroup: string;
   /** Avalanche ICM identity as reported by the endpoint. */
   readonly blockchainId?: string;
+  /** Genesis or operator-attested anchor hash read at its configured height. */
+  readonly genesisHash?: string;
   readonly evmChainId?: bigint;
   readonly networkId?: bigint;
   readonly headBlockNumber: bigint;
@@ -32,6 +34,7 @@ export interface WitnessObservation {
 
 export interface ExpectedIdentity {
   readonly blockchainId: string;
+  readonly genesisHash?: string;
   readonly evmChainId: bigint;
   readonly networkId: bigint;
 }
@@ -46,6 +49,7 @@ export interface QuorumPolicy {
 
 export const WITNESS_REJECTIONS = [
   'wrong-blockchain-id',
+  'wrong-genesis-hash',
   'wrong-evm-chain-id',
   'wrong-network-id',
   'missing-identity',
@@ -86,11 +90,10 @@ export interface QuorumResult {
 const lower = (s: string | undefined): string | undefined => s?.toLowerCase();
 
 /**
- * Select the largest set whose members share neither a trust domain nor a
- * provider group. This is a deterministic maximum bipartite matching: trust
- * domains are the left vertices, provider groups are the right vertices, and
- * observations are edges. A greedy selection can under-count valid witnesses
- * depending on endpoint order, which would make quorum nondeterministic.
+ * Collapse transitive shared trust domains or provider groups into one failure
+ * domain. If A shares a provider with B and B shares a trust domain with C,
+ * none of the three is evidence of an independent failure path. This is the
+ * same conservative relation used by the CLI and offline evidence verifier.
  */
 const independentWitnesses = (
   observations: readonly WitnessObservation[],
@@ -100,30 +103,37 @@ const independentWitnesses = (
       `${b.trustDomain}\0${b.providerGroup}\0${b.endpointId}`,
     ),
   );
-  const byTrustDomain = new Map<string, WitnessObservation[]>();
+  const components: {
+    domains: Set<string>;
+    providers: Set<string>;
+    observations: WitnessObservation[];
+  }[] = [];
   for (const observation of ordered) {
-    byTrustDomain.set(observation.trustDomain, [
-      ...(byTrustDomain.get(observation.trustDomain) ?? []),
-      observation,
-    ]);
-  }
-
-  const byProviderGroup = new Map<string, WitnessObservation>();
-  const assign = (trustDomain: string, seen: Set<string>): boolean => {
-    for (const candidate of byTrustDomain.get(trustDomain) ?? []) {
-      if (seen.has(candidate.providerGroup)) continue;
-      seen.add(candidate.providerGroup);
-      const occupied = byProviderGroup.get(candidate.providerGroup);
-      if (occupied === undefined || assign(occupied.trustDomain, seen)) {
-        byProviderGroup.set(candidate.providerGroup, candidate);
-        return true;
-      }
+    const joined = components.filter(
+      (component) =>
+        component.domains.has(observation.trustDomain) ||
+        component.providers.has(observation.providerGroup),
+    );
+    const merged = {
+      domains: new Set([observation.trustDomain]),
+      providers: new Set([observation.providerGroup]),
+      observations: [observation],
+    };
+    for (const component of joined) {
+      for (const domain of component.domains) merged.domains.add(domain);
+      for (const provider of component.providers) merged.providers.add(provider);
+      merged.observations.push(...component.observations);
+      components.splice(components.indexOf(component), 1);
     }
-    return false;
-  };
-
-  for (const trustDomain of [...byTrustDomain.keys()].sort()) assign(trustDomain, new Set());
-  return [...byProviderGroup.values()].sort((a, b) => a.endpointId.localeCompare(b.endpointId));
+    components.push(merged);
+  }
+  return components
+    .map(
+      (component) =>
+        component.observations.sort((a, b) => a.endpointId.localeCompare(b.endpointId))[0],
+    )
+    .filter((observation): observation is WitnessObservation => observation !== undefined)
+    .sort((a, b) => a.endpointId.localeCompare(b.endpointId));
 };
 
 /**
@@ -157,6 +167,13 @@ export const evaluateQuorum = (
     // different values; both must match, and neither substitutes for the other.
     if (lower(o.blockchainId) !== lower(expected.blockchainId)) {
       reject('wrong-blockchain-id', 'the endpoint serves a different Avalanche blockchain');
+      continue;
+    }
+    if (
+      expected.genesisHash !== undefined &&
+      lower(o.genesisHash) !== lower(expected.genesisHash)
+    ) {
+      reject('wrong-genesis-hash', 'the endpoint does not match the configured genesis anchor');
       continue;
     }
     if (o.evmChainId !== expected.evmChainId) {

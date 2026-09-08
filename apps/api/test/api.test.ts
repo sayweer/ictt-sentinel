@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import fc from 'fast-check';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildBundle, type EvidenceBundle } from '@ictt-sentinel/evidence';
 import { project } from '@ictt-sentinel/alerts';
@@ -295,6 +296,39 @@ describe('hosted evidence API', () => {
         .statusCode,
     ).toBe(200);
     expect(store.acknowledgements).toBe(1);
+  });
+});
+
+describe('hosted API hostile-input properties', () => {
+  it('never authenticates or reflects arbitrary bearer credentials', async () => {
+    const { app } = fixture();
+    await fc.assert(
+      fc.asyncProperty(
+        fc.stringMatching(/^[A-Za-z0-9]{16,96}$/).filter((token) => token !== TOKEN_A),
+        async (token) => {
+          const response = await app.inject({
+            url: '/v1/deployments',
+            headers: { authorization: `Bearer ${token}` },
+          });
+          expect(response.statusCode).toBe(401);
+          expect(response.body).not.toContain(token);
+        },
+      ),
+      { numRuns: 100, seed: 14 },
+    );
+  });
+
+  it('rejects arbitrary ingest documents without a server error or reflection', async () => {
+    const { app } = fixture({ bodyLimit: 16 * 1024 });
+    await fc.assert(
+      fc.asyncProperty(fc.jsonValue(), async (value) => {
+        const response = await ingest(app, { hostile: value }, 'property-key-0000001');
+        expect(response.statusCode).toBeGreaterThanOrEqual(400);
+        expect(response.statusCode).toBeLessThan(500);
+        expect(response.body).not.toContain(TOKEN_A);
+      }),
+      { numRuns: 100, seed: 1401 },
+    );
   });
 });
 

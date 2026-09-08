@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import {
@@ -11,6 +12,16 @@ import {
 } from '../src/index.js';
 
 describe('self-contained offline verification', () => {
+  it('total-decodes arbitrary JSON without throwing or omitting its trust boundary', () => {
+    fc.assert(
+      fc.property(fc.jsonValue(), (candidate) => {
+        const result = verifyBundle(candidate);
+        expect(typeof result.verified).toBe('boolean');
+        expect(result.trustBoundary.length).toBeGreaterThan(0);
+      }),
+      { numRuns: 500, seed: 14 },
+    );
+  });
   it.each(['healthy', 'deficit'] as const)(
     'replays %s without fixture or caller inputs',
     (scenario) => {

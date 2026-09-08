@@ -1,13 +1,15 @@
-import { deriveState, reduceAll } from '@ictt-sentinel/state-machine';
+import { deriveState, reduceAll, sameMessage } from '@ictt-sentinel/state-machine';
 import {
   AT,
   deliveredButFailed,
   doubleEffect,
   emptyPayload,
+  input,
   envelopeResigned,
   failedThenRetried,
   happyPath,
   messageKey,
+  OTHER_MESSENGER,
   multiHop,
   permutations,
   receiptOnly,
@@ -115,6 +117,24 @@ export const lifecycleScenarios = defineScenarios([
     run: () => derive(receiptOnly()),
   },
   {
+    id: 'lifecycle/minimum-teleporter-version-raised',
+    title: 'A message below the raised minimum Teleporter version is unreceivable',
+    corpus: 'operational',
+    provenance: 'packages/state-machine/src/derive.ts; docs/PROTOCOL_SOURCE_LOCK.md',
+    pinned: { messageVersion: '1', minimumVersion: '2' },
+    expect: { holds: ['state=UNRECEIVABLE_BY_VERSION_POLICY', 'effects=0'] },
+    run: () => derive([input('unreceivable-by-version-policy')]),
+  },
+  {
+    id: 'lifecycle/paused-messenger',
+    title: 'A paused messenger is a distinct non-healthy lifecycle state',
+    corpus: 'operational',
+    provenance: 'packages/state-machine/src/derive.ts; docs/DATA_MODEL.md',
+    pinned: { messengerPaused: 'true' },
+    expect: { holds: ['state=PAUSED_VERSION', 'effects=0'] },
+    run: () => derive([input('paused-version')]),
+  },
+  {
     id: 'lifecycle/empty-payload-has-no-effect',
     title: 'An empty-payload message moves no balance',
     corpus: 'operational',
@@ -174,5 +194,31 @@ export const lifecycleScenarios = defineScenarios([
             : [],
       };
     },
+  },
+  {
+    id: 'lifecycle/same-message-id-different-registry-version',
+    title: 'The same message ID under another registry version stays distinct',
+    corpus: 'operational',
+    provenance: 'packages/state-machine/src/keys.ts; docs/DATA_MODEL.md',
+    pinned: { messageId: messageKey().messageId, versions: '1,2' },
+    expect: { holds: ['distinct-message-keys'] },
+    run: () => ({
+      holds: sameMessage(messageKey(), messageKey({ registryProtocolVersion: 2 }))
+        ? []
+        : ['distinct-message-keys'],
+    }),
+  },
+  {
+    id: 'lifecycle/same-message-id-different-family',
+    title: 'The same message ID under another source-locked messenger family stays distinct',
+    corpus: 'operational',
+    provenance: 'packages/state-machine/src/keys.ts; docs/PROTOCOL_SOURCE_LOCK.md',
+    pinned: { messageId: messageKey().messageId, messengerFamilies: 'canonical,other-approved' },
+    expect: { holds: ['distinct-message-keys'] },
+    run: () => ({
+      holds: sameMessage(messageKey(), messageKey({ teleporterMessengerAddress: OTHER_MESSENGER }))
+        ? []
+        : ['distinct-message-keys'],
+    }),
   },
 ]);
