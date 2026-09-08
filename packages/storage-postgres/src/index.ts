@@ -93,6 +93,7 @@ export type { TransitionRow } from './transition-store.js';
 
 export {
   acknowledgeAlert,
+  acknowledgeTenantAlert,
   leaseDueAlerts,
   foldAlert,
   readAlerts,
@@ -127,3 +128,15 @@ export type {
   StoredResponse,
   TokenIdentity,
 } from './hosted-store.js';
+
+export {
+  ingestHostedEvaluation,
+  readHostedEvaluation,
+  readHostedEvaluations,
+} from './hosted-evidence.js';
+export type {
+  HostedEvaluationInput,
+  HostedEvaluationRow,
+  HostedSharingLevel,
+  HostedVerifyStatus,
+} from './hosted-evidence.js';

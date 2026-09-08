@@ -15,11 +15,7 @@ import type { Db, Tx } from './client.js';
  */
 
 export type AlertLifecycleState =
-  | 'first_seen'
-  | 'repeated'
-  | 'escalated'
-  | 'acknowledged'
-  | 'recovered';
+  'first_seen' | 'repeated' | 'escalated' | 'acknowledged' | 'recovered';
 
 export type OutboxStatus = 'pending' | 'sent' | 'failed' | 'abandoned';
 
@@ -205,7 +201,7 @@ export const foldAlert = async (
       where dedup_key = ${next.dedupKey}
     `;
     return { row: next, created: false, closed };
-  }) as Promise<FoldResult>;
+  });
 
 const readByDedupKey = async (tx: Tx, dedupKey: string): Promise<AlertOutboxRow | null> => {
   const rows = await tx<OutboxColumns[]>`
@@ -260,7 +256,7 @@ export const leaseDueAlerts = async (
       where outbox_id in ${tx(leased.map((r) => r.outboxId))}
     `;
     return leased;
-  }) as Promise<readonly AlertOutboxRow[]>;
+  });
 
 export interface DeliveryRecord {
   readonly deliveryId: string;
@@ -319,6 +315,25 @@ export const acknowledgeAlert = async (
     set lifecycle_state = 'acknowledged', acknowledged_by = ${by}, acknowledged_at = ${at}
     where incident_key = ${incidentKey} and lifecycle_state <> 'recovered'
     returning outbox_id
+  `;
+  return rows.length;
+};
+
+/** Tenant-scoped hosted acknowledgement; an unknown and a foreign incident both affect zero rows. */
+export const acknowledgeTenantAlert = async (
+  db: Db,
+  tenantId: string,
+  incidentKey: string,
+  by: string,
+  at: Date,
+): Promise<number> => {
+  const rows = await db.sql`
+    update alert_outbox a
+    set lifecycle_state = 'acknowledged', acknowledged_by = ${by}, acknowledged_at = ${at}
+    from deployment_tenants g
+    where a.deployment_id = g.deployment_id and g.tenant_id = ${tenantId}
+      and a.incident_key = ${incidentKey} and a.lifecycle_state <> 'recovered'
+    returning a.outbox_id
   `;
   return rows.length;
 };

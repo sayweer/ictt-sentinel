@@ -1,6 +1,6 @@
 import { assertSecretFree } from '@ictt-sentinel/evidence';
 import type { Verdict } from '@ictt-sentinel/domain';
-import type { AlertState } from './lifecycle.js';
+import { ALERT_STATES, type AlertState } from './lifecycle.js';
 
 /**
  * The notifier payload.
@@ -190,9 +190,13 @@ export const decodeNotification = (value: unknown): NotificationPayload | null =
     typeof v['deploymentId'] !== 'string' ||
     typeof v['ruleId'] !== 'string' ||
     typeof v['state'] !== 'string' ||
+    !(ALERT_STATES as readonly string[]).includes(v['state']) ||
     typeof v['severity'] !== 'string' ||
+    !(['OK', 'WARN', 'UNKNOWN', 'CRITICAL'] as readonly string[]).includes(v['severity']) ||
     typeof v['summary'] !== 'string' ||
     typeof v['occurrences'] !== 'number' ||
+    !Number.isSafeInteger(v['occurrences']) ||
+    v['occurrences'] < 1 ||
     !Array.isArray(codes) ||
     !codes.every((c: unknown) => typeof c === 'string') ||
     typeof e['contentHash'] !== 'string' ||
@@ -204,21 +208,18 @@ export const decodeNotification = (value: unknown): NotificationPayload | null =
   ) {
     return null;
   }
-  return {
-    schema: NOTIFICATION_SCHEMA,
+  return sanitize({
     dedupKey: v['dedupKey'],
     deploymentId: v['deploymentId'],
     ruleId: v['ruleId'],
-    state: v['state'] as NotificationPayload['state'],
-    severity: v['severity'] as NotificationPayload['severity'],
+    state: v['state'] as AlertState,
+    severity: v['severity'] as Verdict,
     occurrences: v['occurrences'],
-    reasonCodes: codes as readonly string[],
-    summary: v['summary'],
-    freshness: { observedAt: f['observedAt'], expiresAt: f['expiresAt'], fresh: f['fresh'] },
-    evidence: {
-      contentHash: e['contentHash'],
-      schemaVersion: e['schemaVersion'],
-      retrievePath: e['retrievePath'],
-    },
-  };
+    reasonCodes: codes,
+    observedAt: f['observedAt'],
+    expiresAt: f['expiresAt'],
+    fresh: f['fresh'],
+    evidenceHash: e['contentHash'],
+    evidenceSchemaVersion: e['schemaVersion'],
+  });
 };
