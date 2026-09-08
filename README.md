@@ -163,31 +163,31 @@ Global install **gerekmez**; binary workspace içinden çalışır. Binary adı 
 
 ```bash
 # 1) Sağlıklı canonical ERC20  -> OK, exit 0
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture healthy;      echo "exit=$?"
+pnpm --silent run cli -- check --fixture healthy;      echo "exit=$?"
 
 # 2) Provider'lar block hash üzerinde anlaşamıyor -> UNKNOWN, exit 3
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture disagreement; echo "exit=$?"
+pnpm --silent run cli -- check --fixture disagreement; echo "exit=$?"
 
 # 3) Kanıtlı teminat/muhasebe açığı -> CRITICAL, exit 2
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture deficit;      echo "exit=$?"
+pnpm --silent run cli -- check --fixture deficit;      echo "exit=$?"
 ```
 
-`pnpm exec` kullanmak istemezsen birebir eşdeğer kök script:
-`pnpm run cli -- check --fixture healthy` (kök dizinden çalışır; çıktı dizini köktedir)
+`cli` kök scripti derlenmiş workspace binary'sini çalıştırır. `--silent`, paket yöneticisinin
+ek çıktısını kapatır ve JSON stdout ile uygulamanın exit kodlarını korur.
+`pnpm --filter ... exec` bazı non-zero kodları 1'e dönüştürdüğü için CI örneklerinde kullanılmaz.
 
 Evidence üret ve **offline doğrula**:
 
 ```bash
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel evidence export --fixture healthy
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel evidence verify \
+pnpm --silent run cli -- evidence export --fixture healthy
+pnpm --silent run cli -- evidence verify \
   --file evidence-out/healthy.evidence.json
 ```
 
 `evidence export` iki dosya yazar: kanonik JSON ve aynı çekirdekten türetilmiş HTML.
 **HTML core hash'ini değiştirmez.** Dosyalar `0600` izinle, temp + `fsync` + `rename` ile
 atomik yazılır. Varsayılan dizin komutun çalışma dizinindeki `evidence-out`'tur;
-`pnpm --filter` bunu `apps/cli/evidence-out` altında oluşturur. Aşağıdaki verify yolu da
-aynı paket çalışma dizininden çözülür. `--evidence-dir` yalnız operatörün belirlediği dizindir;
+`pnpm --silent run cli --` repository kökünden çalıştırılır; verify yolu da aynı kökten çözülür. `--evidence-dir` yalnız operatörün belirlediği dizindir;
 bundle girdisi dosya yolu belirleyemez. Dizin private (`0700`) olmalı, symlink olamaz.
 JSON ve HTML ayrı atomik dosyalardır; ikisi tek bir filesystem transaction'ı değildir.
 SIGINT sonrası tamamlanmış JSON doğrulanabilir; HTML eksikse export yeniden çalıştırılır.
@@ -201,9 +201,9 @@ verifier geçmişteki değerlendirmeyi yeniden üretir, bugünün zincir sağlı
 Offline fact taramasını sınırlı adımlarla yürüt:
 
 ```bash
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel replay --fixture healthy --max-facts 1
+pnpm --silent run cli -- replay --fixture healthy --max-facts 1
 # İlk adım tamamlanmadığı için UNKNOWN / exit 3.
-pnpm --filter @ictt-sentinel/cli exec ictt-sentinel replay --fixture healthy --max-facts 1 --resume
+pnpm --silent run cli -- replay --fixture healthy --max-facts 1 --resume
 # Aynı input ve build için kalan adım: OK / exit 0.
 ```
 

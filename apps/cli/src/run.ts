@@ -178,6 +178,17 @@ export const parseArgs = (argv: readonly string[]): ParsedArgs => {
 };
 
 export const run = (options: RunOptions): ExitCode => {
+  try {
+    return dispatch(options);
+  } catch {
+    emitHuman(options.writer, 'Internal operation failed; no untrusted error detail emitted.');
+    if (options.argv.includes('--json'))
+      emitJson(options.writer, 'error', { error: 'internal-error', exitCode: EXIT.internalError });
+    return EXIT.internalError;
+  }
+};
+
+const dispatch = (options: RunOptions): ExitCode => {
   const args = parseArgs(options.argv);
   const { writer } = options;
 

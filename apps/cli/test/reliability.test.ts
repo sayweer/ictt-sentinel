@@ -137,6 +137,21 @@ describe('CLI reliability', () => {
       false,
     );
   });
+  it.each([
+    ['healthy', 0],
+    ['disagreement', 3],
+    ['deficit', 2],
+  ] as const)('documented root script preserves %s JSON and exit', (fixture, expected) => {
+    const cwd = fileURLToPath(new URL('../../..', import.meta.url));
+    const child = spawnSync(
+      'pnpm',
+      ['--silent', 'run', 'cli', '--', 'check', '--fixture', fixture, '--json'],
+      { cwd, encoding: 'utf8', timeout: 10000 },
+    );
+    expect(child.status).toBe(expected);
+    expect(JSON.parse(child.stdout)).toMatchObject({ exitCode: expected });
+    expect(child.stderr).toBe('');
+  });
   it('executes the built binary in non-TTY mode with no global install', () => {
     const entry = fileURLToPath(new URL('../dist/index.js', import.meta.url));
     const out = execFileSync(process.execPath, [entry, 'check', '--fixture', 'healthy', '--json'], {

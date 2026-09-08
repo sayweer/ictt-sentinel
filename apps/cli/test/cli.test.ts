@@ -414,10 +414,8 @@ describe('binary identity', () => {
       fileURLToPath(new URL('../../../README.md', import.meta.url)),
       'utf8',
     );
-    expect(readme).toContain(
-      'pnpm --filter @ictt-sentinel/cli exec ictt-sentinel check --fixture healthy',
-    );
-    expect(readme).toContain('pnpm run cli --');
+    expect(readme).toContain('pnpm --silent run cli -- check --fixture healthy');
+    expect(readme).toContain('pnpm --silent run cli --');
     // All three fixtures reachable from the docs.
     for (const f of ['healthy', 'disagreement', 'deficit']) {
       expect(readme).toContain(`--fixture ${f}`);
