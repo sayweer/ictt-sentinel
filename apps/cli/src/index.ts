@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { setImmediate } from 'node:timers/promises';
 import { EXIT, type ExitCode } from './exit-codes.js';
 import { processWriter } from './output.js';
-import { run } from './run.js';
+import { runAsync } from './configured.js';
 
 export const PACKAGE_NAME = '@ictt-sentinel/cli' as const;
 
@@ -23,6 +23,7 @@ export { JSON_SCHEMA_VERSION, emitHuman, emitJson, processWriter } from './outpu
 export type { Writer } from './output.js';
 export { BINARY, HELP, parseArgs, run } from './run.js';
 export type { RunOptions } from './run.js';
+export { runAsync, bindBundle } from './configured.js';
 export { writeAtomic, resolveEvidencePath, UnsafeEvidencePathError } from './atomic-write.js';
 export {
   check,
@@ -59,14 +60,17 @@ if (isDirectRun()) {
   await setImmediate();
   const code: ExitCode = cancellation.signal.aborted
     ? EXIT.internalError
-    : run({
-        argv: process.argv.slice(2),
-        writer: processWriter,
-        env: process.env,
-        evidenceDir: `${process.cwd()}/evidence-out`,
-        version: VERSION,
-        isTty: process.stderr.isTTY,
-      });
+    : await runAsync(
+        {
+          argv: process.argv.slice(2),
+          writer: processWriter,
+          env: process.env,
+          evidenceDir: `${process.cwd()}/evidence-out`,
+          version: VERSION,
+          isTty: process.stderr.isTTY,
+        },
+        cancellation.signal,
+      );
   await setImmediate();
   process.exitCode = cancellation.signal.aborted ? EXIT.internalError : code;
 }

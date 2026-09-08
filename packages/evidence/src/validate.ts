@@ -56,6 +56,26 @@ const schema: Shape = {
       note: 's',
     },
     rawFacts: [{ evmChainId: 's', blockHash: 's', txHash: 's', logIndex: 'n', digest: 's' }],
+    historicalBlocks: {
+      $optional: [
+        {
+          blockchainId: 's',
+          blockNumber: 's',
+          blockHash: 's',
+          acceptanceEvidence: 's',
+          votes: [
+            {
+              endpointId: 's',
+              trustDomain: 's',
+              providerGroup: 's',
+              blockchainId: 's',
+              agreedBlockHash: 's',
+              agreed: 'b',
+            },
+          ],
+        },
+      ],
+    },
     stateCalls: [
       {
         blockchainId: 's',
@@ -135,11 +155,12 @@ function matches(value: unknown, shape: Shape): boolean {
     return Array.isArray(value) && value.every((v) => matches(v, shape[0] as Shape));
   const fields = shape as Record<string, Shape>;
   if (fields['$nullable']) return value === null || matches(value, fields['$nullable']);
+  if (fields['$optional']) return value === undefined || matches(value, fields['$optional']);
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return (
-    Object.keys(record).length === Object.keys(fields).length &&
-    Object.entries(fields).every(([k, s]) => Object.hasOwn(record, k) && matches(record[k], s))
+    Object.keys(record).every((k) => Object.hasOwn(fields, k)) &&
+    Object.entries(fields).every(([k, s]) => matches(record[k], s))
   );
 }
 export const validBundleShape = (value: unknown): value is import('./schema.js').EvidenceBundle =>

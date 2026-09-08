@@ -204,6 +204,14 @@ export interface EvidenceCore {
   readonly chains: readonly PinnedChain[];
   readonly quorum: QuorumMatrix;
   readonly rawFacts: readonly RawFactRefRecord[];
+  /** Historical fact blocks preceding the comparative state pins. */
+  readonly historicalBlocks?: readonly {
+    readonly blockchainId: string;
+    readonly blockNumber: string;
+    readonly blockHash: string;
+    readonly acceptanceEvidence: string;
+    readonly votes: readonly WitnessVote[];
+  }[];
   readonly stateCalls: readonly StateCallRecord[];
   readonly census: CensusRecord;
   readonly messages: readonly MessageRecord[];

@@ -284,6 +284,40 @@ export const verifyBundle = (
       ),
       'Replay pin missing from chain observations.',
     );
+    const history = core.historicalBlocks ?? [];
+    requireEvidence(
+      new Set(history.map((b) => `${b.blockchainId}/${b.blockNumber}`)).size === history.length,
+      'Duplicate historical block.',
+    );
+    for (const block of history) {
+      const chain = core.chains.find((c) => c.blockchainId === block.blockchainId);
+      requireEvidence(
+        chain !== undefined &&
+          /^(0|[1-9][0-9]*)$/.test(block.blockNumber) &&
+          BigInt(block.blockNumber) < BigInt(chain.blockNumber) &&
+          /^0x[0-9a-f]{64}$/.test(block.blockHash) &&
+          block.acceptanceEvidence.length > 0,
+        'Invalid historical accepted block.',
+      );
+      const witnesses = core.quorum.votes.filter((v) => v.blockchainId === block.blockchainId);
+      requireEvidence(
+        block.votes.length === witnesses.length &&
+          block.votes.every(
+            (v) =>
+              v.agreed &&
+              v.agreedBlockHash === block.blockHash &&
+              v.blockchainId === block.blockchainId &&
+              witnesses.some(
+                (w) =>
+                  w.endpointId === v.endpointId &&
+                  w.trustDomain === v.trustDomain &&
+                  w.providerGroup === v.providerGroup,
+              ),
+          ) &&
+          new Set(block.votes.map((v) => v.endpointId)).size === witnesses.length,
+        'Historical block witnesses missing or contradictory.',
+      );
+    }
     for (const fact of core.rawFacts) {
       requireEvidence(
         fact.digest ===
@@ -291,7 +325,14 @@ export const verifyBundle = (
         'Raw fact coordinate digest differs.',
       );
       requireEvidence(
-        core.chains.some((c) => c.evmChainId === fact.evmChainId && c.blockHash === fact.blockHash),
+        core.chains.some(
+          (c) =>
+            c.evmChainId === fact.evmChainId &&
+            (c.blockHash === fact.blockHash ||
+              history.some(
+                (b) => b.blockchainId === c.blockchainId && b.blockHash === fact.blockHash,
+              )),
+        ),
         'Raw fact block reference missing.',
       );
     }

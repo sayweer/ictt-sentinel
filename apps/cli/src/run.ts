@@ -62,6 +62,10 @@ OPTIONS
   --evidence-dir <path>   Where bundles are written. Default: ./evidence-out
   --max-facts <n>         Process at most n facts per offline replay (1..10000).
   --resume                Resume a checkpoint bound to the same bundle hash.
+  --manifest <path>       Reviewed deployment YAML/JSON for configured commands.
+  --policy <path>         Policy YAML/JSON; required with --manifest.
+  --pins <path>           JSON array of blockchainId/blockNumber/blockHash pins.
+  --offline               Replay the recorded snapshot; makes no current-health claim.
   --version               Build identity. Matches the evidence producer identity.
   --help                  This text.
 
@@ -72,6 +76,15 @@ EXIT CODES
 ${Object.entries(EXIT_MEANING)
   .map(([code, meaning]) => `  ${code}  ${meaning}`)
   .join('\n')}
+
+CONFIGURED COMMANDS
+  doctor --manifest <m> --policy <p> --pins <pins>
+  discover --manifest <m> --policy <p> --pins <pins> [--resume]
+  check|replay --manifest <m> --policy <p> --file <bundle> [--offline]
+  evidence export --manifest <m> --policy <p> --file <bundle> [--offline]
+  check/replay also accept --pins, --max-facts and --resume.
+  Discovery scans one policy-bounded block range per invocation; --max-facts
+  bounds returned registrations. Unknown remotes remain unapproved candidates.
 
 This tool holds no key, sends no transaction and can pause nothing.
 `;
