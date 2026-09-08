@@ -24,7 +24,7 @@ export const ALL_SCENARIOS: readonly Scenario[] = [
 ];
 
 const surface = scanForbiddenSurface();
-const result = runLab(ALL_SCENARIOS, surface.length);
+const result = await runLab(ALL_SCENARIOS, surface.length);
 
 describe('fault lab', () => {
   it('has a corpus with a control in every family', () => {

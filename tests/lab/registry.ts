@@ -81,7 +81,7 @@ export interface Scenario {
     readonly amount: string;
   };
   readonly expect: Expectation;
-  run: () => Observed;
+  run: () => Observed | Promise<Observed>;
 }
 
 export type ScenarioInput = Omit<Scenario, 'fixed' | 'expect'> & {
@@ -171,13 +171,13 @@ const missing = (expected: readonly string[], actual: readonly string[]): readon
  * and a verdict that moves between two invocations of the same pinned input is
  * a defect whatever its value.
  */
-const evaluate = (scenario: Scenario): LabRow => {
+const evaluate = async (scenario: Scenario): Promise<LabRow> => {
   const findings: Finding[] = [];
   let first: Observed;
   let second: Observed;
   try {
-    first = scenario.run();
-    second = scenario.run();
+    first = await scenario.run();
+    second = await scenario.run();
   } catch (e) {
     return {
       scenario,
@@ -267,8 +267,11 @@ const evaluate = (scenario: Scenario): LabRow => {
   return { scenario, observed: first, findings };
 };
 
-export const runLab = (scenarios: readonly Scenario[], forbiddenSurfaceCount = 0): LabResult => {
-  const rows = scenarios.map(evaluate);
+export const runLab = async (
+  scenarios: readonly Scenario[],
+  forbiddenSurfaceCount = 0,
+): Promise<LabResult> => {
+  const rows = await Promise.all(scenarios.map(evaluate));
   const findings = rows.flatMap((r) => r.findings);
   const canary = rows.find((row) => row.scenario.id === 'evidence/secret-canary-never-leaves');
   return {

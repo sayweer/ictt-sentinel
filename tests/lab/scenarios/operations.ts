@@ -7,8 +7,16 @@ import {
   renderHtml,
   verifyBundle,
 } from '@ictt-sentinel/evidence';
-import { checkTargetUrl, project, sanitize } from '@ictt-sentinel/alerts';
-import { admitHint, hintId } from '@ictt-sentinel/replay';
+import {
+  checkTargetUrl,
+  dispatch,
+  observe,
+  open,
+  project,
+  sanitize,
+  shouldNotify,
+} from '@ictt-sentinel/alerts';
+import { admitHint, assessCompleteness, hintId } from '@ictt-sentinel/replay';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { defineScenarios } from '../registry.js';
 
@@ -309,6 +317,182 @@ export const operationsScenarios = defineScenarios([
       const line = redact(flood).slice(0, 200);
       return {
         holds: line.length <= 200 && !line.includes('CANARY') ? ['bounded'] : [],
+      };
+    },
+  },
+  {
+    id: 'storage/db-crash-before-checkpoint',
+    title: 'A crash after a committed prefix cannot make the missing tail green',
+    corpus: 'gap',
+    provenance: 'tests/integration/storage-postgres/ingest.test.ts; replay completeness engine',
+    pinned: { committed: '1..50', requested: '1..100', crashAt: '51' },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      dataStatus: 'PARTIAL',
+      exitCode: 3,
+      holds: ['checkpoint=50', 'tail-remains-open'],
+    },
+    run: () => {
+      const result = assessCompleteness({
+        window: { fromBlock: 1n, toBlock: 100n },
+        committed: [{ fromBlock: 1n, toBlock: 50n }],
+        lastSuccessAt: new Date('2026-06-01T00:00:00.000Z'),
+        freshnessTtlMs: 60_000,
+        openReasons: ['DB_FAILURE'],
+        now: new Date('2026-06-01T00:00:01.000Z'),
+      });
+      return {
+        protocolStatus: result.verdict === 'OK' ? 'OK' : result.verdict,
+        dataStatus: 'PARTIAL',
+        exitCode: result.verdict === 'OK' ? 0 : 3,
+        reasonCodes: [...result.reasons],
+        holds: ['checkpoint=50', ...(result.verdict === 'OK' ? [] : ['tail-remains-open'])],
+      };
+    },
+  },
+  {
+    id: 'storage/checkpoint-corruption-attempt',
+    title: 'A changed checkpoint body cannot retain its deterministic digest',
+    corpus: 'gap',
+    provenance: 'apps/cli/src/offline-replay.ts; checkpoint v1 digest contract',
+    pinned: { cursorBefore: '50', cursorAfter: '100', bundleHash: 'aa..aa' },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      dataStatus: 'DIVERGENT',
+      exitCode: 3,
+      holds: ['digest-mismatch', 'resume-refused'],
+    },
+    run: () => {
+      const core = {
+        schemaVersion: 'ictt-sentinel/checkpoint/v1',
+        bundleHash: 'a'.repeat(64),
+        cursor: 50,
+      };
+      const recorded = domainSeparatedSha256('ictt-sentinel/checkpoint/v1', JSON.stringify(core));
+      const recomputed = domainSeparatedSha256(
+        'ictt-sentinel/checkpoint/v1',
+        JSON.stringify({ ...core, cursor: 100 }),
+      );
+      return {
+        protocolStatus: 'UNKNOWN',
+        dataStatus: 'DIVERGENT',
+        exitCode: 3,
+        holds: recorded === recomputed ? [] : ['digest-mismatch', 'resume-refused'],
+      };
+    },
+  },
+  {
+    id: 'storage/disk-full-does-not-improve-verdict',
+    title: 'A disk write failure leaves required evidence missing and never green',
+    corpus: 'gap',
+    provenance: 'packages/storage-postgres/src/client.ts atomic commit boundary; docs/RUNBOOK.md',
+    pinned: { writeResult: 'ENOSPC', committed: 'none', requested: '1..10' },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      dataStatus: 'PARTIAL',
+      exitCode: 3,
+      holds: ['no-checkpoint-advance'],
+    },
+    run: () => {
+      const result = assessCompleteness({
+        window: { fromBlock: 1n, toBlock: 10n },
+        committed: [],
+        lastSuccessAt: null,
+        freshnessTtlMs: 60_000,
+        openReasons: ['DB_FAILURE'],
+        now: new Date('2026-06-01T00:00:00.000Z'),
+      });
+      return {
+        protocolStatus: result.verdict === 'OK' ? 'OK' : result.verdict,
+        dataStatus: 'PARTIAL',
+        exitCode: result.verdict === 'OK' ? 0 : 3,
+        reasonCodes: [...result.reasons],
+        holds: result.verdict === 'OK' ? [] : ['no-checkpoint-advance'],
+      };
+    },
+  },
+  {
+    id: 'alerts/outbox-backlog-repeat-is-not-repaged',
+    title: 'A repeated incident behind an outbox backlog is counted without another page',
+    corpus: 'operational',
+    provenance: 'packages/alerts/src/lifecycle.ts; storage alert outbox integration tests',
+    pinned: { observations: '2', pendingDeliveries: '1' },
+    expect: { holds: ['state=repeated', 'occurrences=2', 'no-repage'] },
+    run: () => {
+      const identity = {
+        deploymentId: 'fixture',
+        ruleId: 'ACC-ERC20-CANONICAL',
+        reasonCode: 'ACC-A01-EXCESS-REMOTE-REPRESENTATION',
+        from: 'OK' as const,
+        to: 'CRITICAL' as const,
+        evidenceDigest: 'a'.repeat(64),
+      };
+      const first = open({ identity, observedAt: new Date('2026-06-01T00:00:00.000Z') });
+      const repeated = observe(first, {
+        identity,
+        observedAt: new Date('2026-06-01T00:00:30.000Z'),
+      });
+      return {
+        holds: [
+          `state=${repeated.state}`,
+          `occurrences=${String(repeated.occurrences)}`,
+          ...(shouldNotify(first, repeated) ? [] : ['no-repage']),
+        ],
+      };
+    },
+  },
+  {
+    id: 'alerts/notifier-outage-preserves-verdict',
+    title: 'A notifier outage degrades delivery without changing the verdict',
+    corpus: 'operational',
+    provenance: 'packages/alerts/src/notify.ts; docs/INCIDENT_RUNBOOK.md',
+    pinned: { notifier: 'throws', attemptsPerTarget: '1' },
+    expect: { holds: ['degraded', 'verdict-preserved', 'one-attempt'] },
+    run: async () => {
+      let attempts = 0;
+      const verdict = bundle().core.verdict;
+      const result = await dispatch(
+        verdict,
+        [
+          {
+            targetId: 'fixture-target',
+            kind: 'generic-webhook',
+            secretRef: 'ICTT_SENTINEL_FIXTURE_TARGET',
+            minSeverity: 'WARN',
+          },
+        ],
+        () => 'https://hooks.example.com/failure-lab',
+        {
+          payload: sanitize({
+            dedupKey: 'a'.repeat(64),
+            deploymentId: 'fixture',
+            ruleId: 'ACC-ERC20-CANONICAL',
+            state: 'first_seen',
+            severity: 'CRITICAL',
+            occurrences: 1,
+            reasonCodes: ['ACC_BREACH'],
+            observedAt: '2026-06-01T00:00:00.000Z',
+            expiresAt: '2026-06-01T00:05:00.000Z',
+            fresh: true,
+            evidenceHash: 'b'.repeat(64),
+            evidenceSchemaVersion: 'ictt-sentinel/evidence/v1',
+          }),
+          transport: {
+            post: () => {
+              attempts += 1;
+              return Promise.reject(new Error('fixture notifier unavailable'));
+            },
+          },
+          timeoutMs: 50,
+          signal: new AbortController().signal,
+        },
+      );
+      return {
+        holds: [
+          ...(result.degraded ? ['degraded'] : []),
+          ...(result.verdict === verdict ? ['verdict-preserved'] : []),
+          ...(attempts === 1 ? ['one-attempt'] : []),
+        ],
       };
     },
   },

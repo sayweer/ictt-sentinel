@@ -110,6 +110,13 @@ bu, bir manifest'in resolver'ı rastgele bir process değişkenine yönlendirmes
 | Warp / validator güvenliğinin kırılması | **KAPSAM DIŞI** | Bkz. ADR-0004 |
 | Admin / upgrade authority'nin kötüye kullanımı | **Kısmen** | Drift görülür, engellenemez |
 | Ürünün kendi secret'ının sızması | **Kapsamda** | §3, §4; hedef sıfır olay |
+| Transitive ortak RPC provider/trust ilişkisi | **Kapsamda** | Bağlı failure-domain tek witness sayılır |
+| Accepted hash'in sonradan değişmesi | **Kapsamda** | Integrity incident; rollback/yeşil hüküm yok |
+| Malicious API body/token/tenant traversal | **Kapsamda** | Şema, auth, tenant grant, body/rate bound ve property test |
+| Checkpoint'in fact commit'ini aşması | **Kapsamda** | Aynı DB transaction; crash/restart integration testi |
+| Disk/outbox/notifier arızası | **Kapsamda** | Verdict değişmez; pending retry ve degraded health |
+| Build veya dependency supply-chain sapması | **Kapsamda** | Exact lock, SCA, lisans, SBOM, checksum ve reproducible build |
+| CPU/bellek/DB kaynak tüketimi | **Kısmen** | Bounded local budget; production kapasitesi operatöre ait |
 
 ## 8. `teleporterV2` / issue #1443 duruşu
 

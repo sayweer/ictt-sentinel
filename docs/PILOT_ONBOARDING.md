@@ -157,13 +157,16 @@ pnpm run cli -- check --fixture deficit
 # 2. Provider'lar pinned block hash üzerinde anlaşamıyor -> UNKNOWN, exit 3
 pnpm run cli -- check --fixture disagreement
 
-# 3. Tam saldırgan korpusu: 76 senaryo, beş release sayacı
+# 3. Tam saldırgan korpusu: 88 senaryo, beş release sayacı
 pnpm run lab
 ```
 
 Üçüncüsü, "sahte quorum", "aynı yükseklikte farklı hash", "sessiz log kesintisi",
 "evidence tamper", "SSRF alert hedefi" gibi senaryoların tamamını çalıştırır ve
 beş sayacın sıfır olduğunu gösterir.
+
+Demo çıktısını ve exit kodunu pilot olay kaydına ekle. Evidence tesliminden önce
+`docs/RELEASE_READINESS.md` §5 denetçi kontrol listesini uygula.
 
 ---
 
@@ -178,6 +181,8 @@ Varsayılan `local-only`'dir ve hosted plane'i açmak bunu **değiştirmez**.
 | `approved-full` | Tam bundle — yalnız açık onayla |
 
 Ayrıntı ve rızanın geri alınması: `docs/RUNBOOK.md` §10.
+Retention sürelerini `docs/OPERATOR_QUESTIONNAIRE.md` içinde veri sınıfı bazında
+kararlaştır; hosted varsayılanı paylaşım izni yaratmaz.
 
 ---
 

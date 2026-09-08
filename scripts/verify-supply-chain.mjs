@@ -53,7 +53,10 @@ try {
 const vulns = audit.metadata?.vulnerabilities ?? {};
 for (const level of ['critical', 'high']) {
   if ((vulns[level] ?? 0) > 0) {
-    fail('audit', `${String(vulns[level])} ${level} advisory/advisories; suppression is not offered`);
+    fail(
+      'audit',
+      `${String(vulns[level])} ${level} advisory/advisories; suppression is not offered`,
+    );
   }
 }
 
@@ -131,11 +134,19 @@ for (const [license, packages] of Object.entries(licenses)) {
       } else if (runtimeThirdParty.has(pkg.name)) {
         // The scope exists because the package is build-time only. If it ever
         // becomes a runtime dependency the exemption no longer applies.
-        fail('licenses', `"${license}" (${pkg.name}) is scoped to build time but is now a runtime dependency`);
+        fail(
+          'licenses',
+          `"${license}" (${pkg.name}) is scoped to build time but is now a runtime dependency`,
+        );
       }
     }
     for (const version of pkg.versions ?? []) {
-      licenseInventory.push({ name: pkg.name, version, license, scoped: !ALLOWED_LICENSES.has(license) });
+      licenseInventory.push({
+        name: pkg.name,
+        version,
+        license,
+        scoped: !ALLOWED_LICENSES.has(license),
+      });
     }
   }
 }
@@ -213,10 +224,7 @@ if (existsSync(workflows)) {
 }
 
 // --- 6. container base images pinned to digests ----------------------------
-const containerFiles = [
-  'infra/containers/Containerfile',
-  'infra/postgres/docker-compose.yml',
-];
+const containerFiles = ['infra/containers/Containerfile', 'infra/postgres/docker-compose.yml'];
 for (const rel of containerFiles) {
   const path = join(ROOT, rel);
   if (!existsSync(path)) continue;
@@ -247,16 +255,44 @@ for (const rel of containerFiles) {
 const serialise = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const artifacts = [
   ['sbom.cdx.json', serialise(sbom)],
-  ['licenses.json', serialise({ allowed: [...ALLOWED_LICENSES].sort(), components: licenseInventory })],
+  [
+    'licenses.json',
+    serialise({ allowed: [...ALLOWED_LICENSES].sort(), components: licenseInventory }),
+  ],
 ];
+
+const RELEASE_FILES = [
+  'artifacts/licenses.json',
+  'artifacts/sbom.cdx.json',
+  'config/deployments/example.ictt.yml',
+  'config/policies/default.yml',
+  'docs/BACKUP_RESTORE.md',
+  'docs/INCIDENT_RUNBOOK.md',
+  'docs/OPERATOR_QUESTIONNAIRE.md',
+  'docs/PILOT_ONBOARDING.md',
+  'docs/RELEASE_READINESS.md',
+  'infra/containers/Containerfile',
+  'infra/postgres/docker-compose.yml',
+  'pnpm-lock.yaml',
+];
+
+const checksumManifest = () => {
+  const lines = [];
+  for (const rel of RELEASE_FILES) {
+    const path = join(ROOT, rel);
+    if (!existsSync(path)) {
+      fail('release-artifacts', `${rel} is missing`);
+      continue;
+    }
+    lines.push(`${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${rel}`);
+  }
+  return `${lines.join('\n')}\n`;
+};
 
 if (WRITE) {
   mkdirSync(ARTIFACTS, { recursive: true });
   for (const [name, body] of artifacts) writeFileSync(join(ARTIFACTS, name), body, 'utf8');
-  const manifest = artifacts
-    .map(([name, body]) => `${createHash('sha256').update(body).digest('hex')}  ${name}`)
-    .join('\n');
-  writeFileSync(join(ARTIFACTS, 'checksums.txt'), `${manifest}\n`, 'utf8');
+  writeFileSync(join(ARTIFACTS, 'checksums.txt'), checksumManifest(), 'utf8');
 } else {
   for (const [name, body] of artifacts) {
     const path = join(ARTIFACTS, name);
@@ -267,6 +303,12 @@ if (WRITE) {
     if (readFileSync(path, 'utf8') !== body) {
       fail('artifacts', `artifacts/${name} is stale; run pnpm run supply-chain:write`);
     }
+  }
+  const expectedChecksums = checksumManifest();
+  const checksumPath = join(ARTIFACTS, 'checksums.txt');
+  if (!existsSync(checksumPath)) fail('release-artifacts', 'artifacts/checksums.txt is missing');
+  else if (readFileSync(checksumPath, 'utf8') !== expectedChecksums) {
+    fail('release-artifacts', 'artifacts/checksums.txt is stale');
   }
 }
 
