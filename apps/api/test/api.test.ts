@@ -4,6 +4,7 @@ import { buildBundle, type EvidenceBundle } from '@ictt-sentinel/evidence';
 import { project } from '@ictt-sentinel/alerts';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { API_VERSION, buildApi, tokenHash } from '../src/server.js';
+import { describeApiConfig, loadApiConfig } from '../src/config.js';
 import type { ApiGrant, ApiIdentity, ApiStore, HostedRecord, HostedWrite } from '../src/store.js';
 
 const NOW = new Date('2026-06-01T00:01:00.000Z');
@@ -292,6 +293,45 @@ describe('hosted evidence API', () => {
         .statusCode,
     ).toBe(200);
     expect(store.acknowledgements).toBe(1);
+  });
+});
+
+describe('API process configuration', () => {
+  it('loads bounded settings while descriptions omit DSNs and resolved webhook values', () => {
+    const config = loadApiConfig({
+      ICTT_SENTINEL_API_DATABASE_URL: 'postgres://operator:secret@db.example/sentinel',
+      ICTT_SENTINEL_API_WEBHOOK_SECRET_REFS: JSON.stringify({
+        'tenant-a/source-a': 'ICTT_SENTINEL_HOOK_A',
+      }),
+      ICTT_SENTINEL_HOOK_A: 'https://hooks.example.com/private',
+    });
+    expect(config.webhookSecretRefs.get('tenant-a/source-a')).toBe('ICTT_SENTINEL_HOOK_A');
+    const described = JSON.stringify(describeApiConfig(config));
+    expect(described).not.toContain('postgres://');
+    expect(described).not.toContain('hooks.example.com');
+  });
+
+  it('refuses DNS bind names, signer material and webhook values in place of env references', () => {
+    expect(() =>
+      loadApiConfig({
+        ICTT_SENTINEL_API_DATABASE_URL: 'postgres://db.example/sentinel',
+        ICTT_SENTINEL_API_HOST: 'api.example.com',
+      }),
+    ).toThrow('must be literal');
+    expect(() =>
+      loadApiConfig({
+        ICTT_SENTINEL_API_DATABASE_URL: 'postgres://db.example/sentinel',
+        ICTT_SENTINEL_SIGNING_KEY: 'must-never-be-read',
+      }),
+    ).toThrow('signing material');
+    expect(() =>
+      loadApiConfig({
+        ICTT_SENTINEL_API_DATABASE_URL: 'postgres://db.example/sentinel',
+        ICTT_SENTINEL_API_WEBHOOK_SECRET_REFS: JSON.stringify({
+          'tenant-a/source-a': 'https://hooks.example.com/private',
+        }),
+      }),
+    ).toThrow('invalid entry');
   });
 });
 

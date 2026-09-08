@@ -23,6 +23,9 @@
     ]
   },
   "main": "./dist/index.js",
+  "bin": {
+    "ictt-sentinel-api": "./dist/main.js"
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "dist"

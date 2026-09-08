@@ -14,6 +14,8 @@ import {
 } from '@ictt-sentinel/storage-postgres';
 import type { ApiStore, HostedRecord } from './store.js';
 
+const HOSTED_SCHEMA_VERSION = 7;
+
 const hosted = (r: Awaited<ReturnType<typeof readHostedEvaluations>>[number]): HostedRecord => ({
   deploymentId: r.deploymentId,
   evidenceDigest: r.evidenceDigest,
@@ -30,7 +32,10 @@ const hosted = (r: Awaited<ReturnType<typeof readHostedEvaluations>>[number]): H
 export const postgresStore = (db: Db): ApiStore => ({
   ready: async () => {
     try {
-      const rows = await db.sql`select to_regclass('hosted_evaluations') is not null as ready`;
+      const rows = await db.sql`
+        select to_regclass('hosted_evaluations') is not null
+          and (select max(version) from schema_migrations) = ${HOSTED_SCHEMA_VERSION} as ready
+      `;
       return rows[0]?.['ready'] === true;
     } catch {
       return false;
