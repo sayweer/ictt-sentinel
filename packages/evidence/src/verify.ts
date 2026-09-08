@@ -1,5 +1,5 @@
 import { validBundleShape } from './validate.js';
-import { decodeProofInput, replayProof } from './replay.js';
+import { decodeReplayInput, replayEvaluation } from './native-replay.js';
 import { aggregate, type AggregationInput } from '@ictt-sentinel/invariant-core';
 import { canonicalStringify } from './canonical.js';
 import { hashCore, factDigest, stateCallDigest, domainSeparatedSha256 } from './hash.js';
@@ -139,8 +139,8 @@ export const verifyBundle = (
   // Re-run the arithmetic using only the signed-by-nobody, self-contained core.
   try {
     const core = bundle.core;
-    const input = decodeProofInput(core.replay.input);
-    const replayed = replayProof(input);
+    const { context: input, native } = decodeReplayInput(core.replay.input);
+    const replayed = replayEvaluation(core.replay.input);
     if (
       canonicalStringify(replayed.evaluation) !== canonicalStringify(core.replay.evaluation) ||
       canonicalStringify([replayed.rule]) !== canonicalStringify(core.rules) ||
@@ -325,19 +325,63 @@ export const verifyBundle = (
         'State call digest or provenance differs.',
       );
     }
-    input.remotes.forEach((r, i) => {
-      for (const field of ['transferredBalance', 'remoteTotalSupply'] as const)
+    if (native === null) {
+      input.remotes.forEach((r, i) => {
+        for (const field of ['transferredBalance', 'remoteTotalSupply'] as const)
+          requireEvidence(
+            r[field] !== null &&
+              observations.get(`remotes.${String(i)}.${field}`) === String(r[field]),
+            'Required remote state observation missing or contradictory.',
+          );
+      });
+      requireEvidence(
+        input.homeEscrow.escrowBalance !== null &&
+          observations.get('homeEscrow.escrowBalance') === String(input.homeEscrow.escrowBalance),
+        'Escrow observation missing or contradictory.',
+      );
+    } else {
+      const values = {
+        ...Object.fromEntries(
+          Object.entries(native.components)
+            .filter(([, v]) => typeof v === 'bigint' || v === null)
+            .map(([k, v]) => [`native.components.${k}`, v]),
+        ),
+        'native.eligibleHomeCoverage': native.eligibleHomeCoverage,
+        'native.collateralNeeded': native.collateralNeeded,
+        'native.acceptedCollateral': native.acceptedCollateral,
+      };
+      for (const [path, value] of Object.entries(values))
         requireEvidence(
-          r[field] !== null &&
-            observations.get(`remotes.${String(i)}.${field}`) === String(r[field]),
-          'Required remote state observation missing or contradictory.',
+          value !== null && observations.get(path) === String(value),
+          'Required native observation missing or contradictory.',
         );
-    });
-    requireEvidence(
-      input.homeEscrow.escrowBalance !== null &&
-        observations.get('homeEscrow.escrowBalance') === String(input.homeEscrow.escrowBalance),
-      'Escrow observation missing or contradictory.',
-    );
+      requireEvidence(
+        native.components.fingerprintRecognised &&
+          core.fingerprints.some((f) => f.role === 'native-token-remote' && f.recognised),
+        'Native fingerprint missing.',
+      );
+      requireEvidence(
+        native.census.epochsExpected > 0 &&
+          native.census.epochsCovered >= native.census.epochsExpected &&
+          native.census.manifestRosterProvided &&
+          native.census.genesisChainConfigRead &&
+          native.census.activationRulesKnown &&
+          native.census.roleHistoryCompleteFromActivation &&
+          native.census.allCandidateRolesRead,
+        'Native minter census evidence incomplete.',
+      );
+      for (const section of ['census', 'feeReporting'] as const)
+        requireEvidence(
+          observations.get(`native.${section}`) === canonicalStringify(native[section]),
+          'Native census or fee-report provenance missing.',
+        );
+      if (native.trustworthySupplyLowerBound !== null)
+        requireEvidence(
+          observations.get('native.trustworthySupplyLowerBound') ===
+            String(native.trustworthySupplyLowerBound),
+          'Native lower-bound evidence missing.',
+        );
+    }
     requireEvidence(
       same(
         core.census.registeredRemotes,

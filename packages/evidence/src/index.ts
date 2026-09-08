@@ -60,3 +60,12 @@ export type { ReplayInputs, VerifyFailure, VerifyFinding, VerifyResult } from '.
 
 export { renderHtml } from './html.js';
 export { decodeProofInput, encodeProofInput, replayProof } from './replay.js';
+
+export {
+  decodeNativeInput,
+  decodeReplayInput,
+  encodeNativeReplay,
+  encodeReplayInput,
+  replayNative,
+  replayEvaluation,
+} from './native-replay.js';
