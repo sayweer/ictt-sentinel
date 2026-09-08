@@ -13,7 +13,7 @@ import {
   type ObservedContract,
 } from '@ictt-sentinel/ictt-adapters';
 import { nativeInput } from '@ictt-sentinel/testkit';
-import type { Scenario } from '../registry.js';
+import { defineScenarios } from '../registry.js';
 
 /**
  * Protocol-shape and native-mode faults.
@@ -35,7 +35,9 @@ const observed = (o: Partial<ObservedContract> = {}): ObservedContract => ({
   ...o,
 });
 
-const drift = (o: Partial<DriftObservation> & { control: DriftObservation['control'] }): DriftObservation => ({
+const drift = (
+  o: Partial<DriftObservation> & { control: DriftObservation['control'] },
+): DriftObservation => ({
   status: 'drift',
   expected: 'approved',
   observed: 'different',
@@ -43,7 +45,7 @@ const drift = (o: Partial<DriftObservation> & { control: DriftObservation['contr
   ...o,
 });
 
-export const protocolScenarios: readonly Scenario[] = [
+export const protocolScenarios = defineScenarios([
   {
     id: 'protocol/registry-version-2-is-not-teleporter-v2',
     title: 'Registry protocol version 2 does not select the experimental ABI tree',
@@ -152,9 +154,7 @@ export const protocolScenarios: readonly Scenario[] = [
     expect: { reasonCodes: ['CFG-D02-UNAPPROVED-CANDIDATE'], holds: ['candidate'] },
     run: () => {
       const status = classifyDiscoveredRemote(false);
-      const result = assessDrift([
-        drift({ control: 'contract-address', status, required: false }),
-      ]);
+      const result = assessDrift([drift({ control: 'contract-address', status, required: false })]);
       return {
         reasonCodes: [...result.reasons],
         holds: status === 'candidate' ? ['candidate'] : [],
@@ -225,10 +225,15 @@ export const protocolScenarios: readonly Scenario[] = [
   {
     id: 'native/unexpected-minter-role',
     title: 'A minter nobody approved blocks the exclusivity assumption',
-    corpus: 'gap',
+    corpus: 'deterministic-breach',
     provenance: 'docs/INVARIANTS.md 7; minter exclusivity',
     pinned: { unexpectedRoleHolders: '1' },
-    expect: { holds: ['census-not-established'] },
+    expect: {
+      protocolStatus: 'CRITICAL',
+      exitCode: 2,
+      reasonCodes: ['CFG-N01-UNEXPECTED-MINTER-ROLE'],
+      holds: ['census-not-established'],
+    },
     run: () => {
       const census = assessMinterCensus({
         manifestRosterProvided: true,
@@ -242,6 +247,8 @@ export const protocolScenarios: readonly Scenario[] = [
         epochsExpected: 1,
       });
       return {
+        protocolStatus: census.critical ? 'CRITICAL' : 'UNKNOWN',
+        exitCode: census.critical ? 2 : 3,
         holds: census.established ? [] : ['census-not-established'],
         reasonCodes: [...census.reasons],
       };
@@ -278,7 +285,12 @@ export const protocolScenarios: readonly Scenario[] = [
     corpus: 'deterministic-breach',
     provenance: 'docs/INVARIANTS.md 7',
     pinned: { unauthorisedMintObserved: 'true' },
-    expect: { holds: ['census-not-established'] },
+    expect: {
+      protocolStatus: 'CRITICAL',
+      exitCode: 2,
+      reasonCodes: ['CFG-N02-UNAUTHORISED-NATIVE-MINT'],
+      holds: ['census-not-established'],
+    },
     run: () => {
       const census = assessMinterCensus({
         manifestRosterProvided: true,
@@ -292,6 +304,8 @@ export const protocolScenarios: readonly Scenario[] = [
         epochsExpected: 1,
       });
       return {
+        protocolStatus: census.critical ? 'CRITICAL' : 'UNKNOWN',
+        exitCode: census.critical ? 2 : 3,
         holds: census.established ? [] : ['census-not-established'],
         reasonCodes: [...census.reasons],
       };
@@ -339,4 +353,4 @@ export const protocolScenarios: readonly Scenario[] = [
       return { holds: [result.assessment], reasonCodes: [...result.reasons] };
     },
   },
-];
+]);

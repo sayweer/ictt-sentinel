@@ -3,9 +3,11 @@ import { RpcIntegrityConflict } from './errors.js';
 /**
  * Independent witness quorum.
  *
- * Quorum is counted over distinct trustDomains, never over URLs. Two hostnames
- * in front of one upstream are one witness, and treating them as two is how a
- * single point of failure gets reported as agreement
+ * Quorum is counted over witnesses that are independent by BOTH providerGroup
+ * and trustDomain, never over URLs. Two hostnames in front of one upstream are
+ * one witness; two accounts controlled by one provider are also one witness.
+ * Treating either relationship as independent is how a single point of failure
+ * gets reported as agreement
  * (docs/INVARIANTS.md section 9).
  *
  * This is not a Byzantine or cryptographic proof and must never be described as
@@ -69,8 +71,10 @@ export interface QuorumResult {
   /** Height every counted witness agreed on. Present only when agreed. */
   readonly height?: bigint;
   readonly blockHash?: string;
-  /** Distinct trustDomains that agreed. This is the quorum count. */
+  /** Distinct trustDomains in the selected independent witness set. */
   readonly agreeingTrustDomains: readonly string[];
+  /** Distinct providerGroups in the selected independent witness set. */
+  readonly agreeingProviderGroups: readonly string[];
   /** Endpoints that contributed, for provenance. */
   readonly agreeingEndpointIds: readonly string[];
   readonly rejected: readonly RejectedWitness[];
@@ -80,6 +84,47 @@ export interface QuorumResult {
 }
 
 const lower = (s: string | undefined): string | undefined => s?.toLowerCase();
+
+/**
+ * Select the largest set whose members share neither a trust domain nor a
+ * provider group. This is a deterministic maximum bipartite matching: trust
+ * domains are the left vertices, provider groups are the right vertices, and
+ * observations are edges. A greedy selection can under-count valid witnesses
+ * depending on endpoint order, which would make quorum nondeterministic.
+ */
+const independentWitnesses = (
+  observations: readonly WitnessObservation[],
+): readonly WitnessObservation[] => {
+  const ordered = [...observations].sort((a, b) =>
+    `${a.trustDomain}\0${a.providerGroup}\0${a.endpointId}`.localeCompare(
+      `${b.trustDomain}\0${b.providerGroup}\0${b.endpointId}`,
+    ),
+  );
+  const byTrustDomain = new Map<string, WitnessObservation[]>();
+  for (const observation of ordered) {
+    byTrustDomain.set(observation.trustDomain, [
+      ...(byTrustDomain.get(observation.trustDomain) ?? []),
+      observation,
+    ]);
+  }
+
+  const byProviderGroup = new Map<string, WitnessObservation>();
+  const assign = (trustDomain: string, seen: Set<string>): boolean => {
+    for (const candidate of byTrustDomain.get(trustDomain) ?? []) {
+      if (seen.has(candidate.providerGroup)) continue;
+      seen.add(candidate.providerGroup);
+      const occupied = byProviderGroup.get(candidate.providerGroup);
+      if (occupied === undefined || assign(occupied.trustDomain, seen)) {
+        byProviderGroup.set(candidate.providerGroup, candidate);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (const trustDomain of [...byTrustDomain.keys()].sort()) assign(trustDomain, new Set());
+  return [...byProviderGroup.values()].sort((a, b) => a.endpointId.localeCompare(b.endpointId));
+};
 
 /**
  * Select a common observable height and check agreement on it.
@@ -133,6 +178,7 @@ export const evaluateQuorum = (
     return {
       outcome: 'insufficient-witnesses',
       agreeingTrustDomains: [],
+      agreeingProviderGroups: [],
       agreeingEndpointIds: [],
       rejected,
       reasons: ['no endpoint established the expected chain identity within the freshness window'],
@@ -163,6 +209,7 @@ export const evaluateQuorum = (
     return {
       outcome: 'insufficient-witnesses',
       agreeingTrustDomains: [],
+      agreeingProviderGroups: [],
       agreeingEndpointIds: [],
       rejected,
       reasons: ['every witness was outside the head-lag policy'],
@@ -178,6 +225,7 @@ export const evaluateQuorum = (
     return {
       outcome: 'insufficient-witnesses',
       agreeingTrustDomains: [],
+      agreeingProviderGroups: [],
       agreeingEndpointIds: [],
       rejected,
       reasons: ['no witness remained after the head-lag filter'],
@@ -214,6 +262,7 @@ export const evaluateQuorum = (
     return {
       outcome: 'no-common-height',
       agreeingTrustDomains: [],
+      agreeingProviderGroups: [],
       agreeingEndpointIds: [],
       rejected,
       reasons: ['no witness supplied a hash at the common height'],
@@ -228,6 +277,7 @@ export const evaluateQuorum = (
       outcome: 'disagreement',
       height,
       agreeingTrustDomains: [],
+      agreeingProviderGroups: [],
       agreeingEndpointIds: [],
       rejected,
       reasons: [
@@ -239,20 +289,23 @@ export const evaluateQuorum = (
   }
 
   const [hash, group] = [...byHash.entries()][0] ?? ['', []];
-  const trustDomains = [...new Set(group.map((o) => o.trustDomain))].sort();
+  const independent = independentWitnesses(group);
+  const trustDomains = independent.map((o) => o.trustDomain).sort();
+  const providerGroups = independent.map((o) => o.providerGroup).sort();
 
-  if (trustDomains.length < policy.minIndependentTrustDomains) {
+  if (independent.length < policy.minIndependentTrustDomains) {
     return {
       outcome: 'insufficient-witnesses',
       height,
       blockHash: hash,
       agreeingTrustDomains: trustDomains,
-      agreeingEndpointIds: group.map((o) => o.endpointId),
+      agreeingProviderGroups: providerGroups,
+      agreeingEndpointIds: independent.map((o) => o.endpointId),
       rejected,
       reasons: [
-        `${String(group.length)} endpoint(s) agreed but only ${String(trustDomains.length)} ` +
-          `independent trust domain(s); policy requires ${String(policy.minIndependentTrustDomains)}. ` +
-          'Multiple URLs from one provider count as one witness.',
+        `${String(group.length)} endpoint(s) agreed but only ${String(independent.length)} ` +
+          `witness(es) are independent by provider group and trust domain; policy requires ${String(policy.minIndependentTrustDomains)}. ` +
+          'Multiple URLs or identities behind one provider count as one witness.',
       ],
       degraded,
     };
@@ -263,7 +316,8 @@ export const evaluateQuorum = (
     height,
     blockHash: hash,
     agreeingTrustDomains: trustDomains,
-    agreeingEndpointIds: group.map((o) => o.endpointId).sort(),
+    agreeingProviderGroups: providerGroups,
+    agreeingEndpointIds: independent.map((o) => o.endpointId),
     rejected,
     reasons: [],
     degraded,

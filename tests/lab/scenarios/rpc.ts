@@ -11,7 +11,7 @@ import {
   type WitnessObservation,
 } from '@ictt-sentinel/rpc-quorum';
 import { agree, assessCompleteness, findRangeGaps } from '@ictt-sentinel/replay';
-import type { Scenario } from '../registry.js';
+import { defineScenarios } from '../registry.js';
 
 /**
  * Provider-level faults.
@@ -41,8 +41,8 @@ const POLICY: QuorumPolicy = {
 };
 
 const witness = (o: Partial<WitnessObservation> & { endpointId: string }): WitnessObservation => ({
-  trustDomain: 'alpha',
-  providerGroup: 'alpha-1',
+  trustDomain: o.trustDomain ?? 'alpha',
+  providerGroup: o.providerGroup ?? `${o.trustDomain ?? 'alpha'}-1`,
   blockchainId: HOME_ICM,
   evmChainId: 43_114n,
   networkId: 1n,
@@ -81,7 +81,7 @@ const quorumRun = (observations: readonly WitnessObservation[]) => {
   };
 };
 
-export const rpcScenarios: readonly Scenario[] = [
+export const rpcScenarios = defineScenarios([
   {
     id: 'rpc/wrong-evm-chain-id',
     title: 'A witness answers from a different EVM chain',
@@ -178,7 +178,7 @@ export const rpcScenarios: readonly Scenario[] = [
     run: () =>
       quorumRun([
         witness({ endpointId: 'ep-1' }),
-        witness({ endpointId: 'ep-2', providerGroup: 'alpha-2' }),
+        witness({ endpointId: 'ep-2', trustDomain: 'beta', providerGroup: 'alpha-1' }),
       ]),
   },
   {
@@ -191,7 +191,7 @@ export const rpcScenarios: readonly Scenario[] = [
     run: () =>
       quorumRun([
         witness({ endpointId: 'https-a' }),
-        witness({ endpointId: 'https-b', providerGroup: 'alpha-1' }),
+        witness({ endpointId: 'https-b', trustDomain: 'alpha', providerGroup: 'alpha-2' }),
       ]),
   },
   {
@@ -415,4 +415,4 @@ export const rpcScenarios: readonly Scenario[] = [
       };
     },
   },
-];
+]);

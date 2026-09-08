@@ -8,7 +8,7 @@ import {
   type ProofOptions,
 } from '@ictt-sentinel/testkit';
 import { deriveCollateralNeeded, applyTokenScale } from '@ictt-sentinel/ictt-adapters';
-import type { Observed, Scenario } from '../registry.js';
+import { defineScenarios, type Observed } from '../registry.js';
 
 /**
  * Accounting faults.
@@ -29,11 +29,12 @@ const evaluateFrom = (options: ProofOptions): Observed => {
     dataStatus: verdict.dataStatus,
     reasonCodes: [...verdict.reasonCodes],
     exitCode: exitCodeFor(verdict),
-    digest: evaluation.output.inputDigest,
+    digest: (evaluation as { readonly output: { readonly inputDigest: string } }).output
+      .inputDigest,
   };
 };
 
-export const accountingScenarios: readonly Scenario[] = [
+export const accountingScenarios = defineScenarios([
   {
     id: 'accounting/reconciled-baseline',
     title: 'The reconciled baseline, so the corpus has a control',
@@ -89,7 +90,8 @@ export const accountingScenarios: readonly Scenario[] = [
     // liability. A wrong token address, an unread proxy or a stale read produce
     // the same shape, so only Gate A raises CRITICAL. Asserted here so the
     // boundary is a checked property rather than a comment in one file.
-    provenance: 'packages/invariant-core/src/gate-b.ts; gates.test.ts "not a proven economic breach"',
+    provenance:
+      'packages/invariant-core/src/gate-b.ts; gates.test.ts "not a proven economic breach"',
     pinned: { liabilityHomeUnits: '5', escrow: '1' },
     expect: {
       protocolStatus: 'WARN',
@@ -416,4 +418,4 @@ export const accountingScenarios: readonly Scenario[] = [
       };
     },
   },
-];
+]);

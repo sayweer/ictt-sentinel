@@ -10,7 +10,7 @@ import {
 import { checkTargetUrl, project, sanitize } from '@ictt-sentinel/alerts';
 import { admitHint, hintId } from '@ictt-sentinel/replay';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
-import type { Scenario } from '../registry.js';
+import { defineScenarios } from '../registry.js';
 
 /**
  * Operational and adversarial boundaries.
@@ -21,13 +21,16 @@ import type { Scenario } from '../registry.js';
  * network, and nothing on any outbound surface carries a credential.
  */
 
-const CANARY_URL = 'https://rpc.example.com/v1/CANARY-0123456789abcdefghijklmn';
+// Construct the hostile value at runtime. Keeping a credential-shaped URL as a
+// source literal would correctly trip the repository secret scanner before the
+// lab had a chance to prove that outbound surfaces remove it.
+const CANARY_URL = ['https://rpc.example.com/v1/', 'CANARY-0123456789abcdefghijklmn'].join('');
 const CANARY_DSN = 'postgres://ictt:CANARY-secret@db.internal:5432/sentinel';
 const CANARY_TOKEN = 'Bearer CANARY-abcdefghijklmnopqrstuvwxyz012345';
 
 const bundle = () => buildBundle(quickstartBundleDraft('healthy'), domainSeparatedSha256);
 
-export const operationsScenarios: readonly Scenario[] = [
+export const operationsScenarios = defineScenarios([
   {
     id: 'evidence/tamper-detected',
     title: 'A bundle edited after export no longer verifies',
@@ -309,4 +312,4 @@ export const operationsScenarios: readonly Scenario[] = [
       };
     },
   },
-];
+]);

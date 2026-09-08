@@ -40,8 +40,8 @@ const policy: QuorumPolicy = {
 
 const witness = (over: Partial<WitnessObservation> = {}): WitnessObservation => ({
   endpointId: 'e1',
-  trustDomain: 'provider-alpha',
-  providerGroup: 'provider-alpha-prod',
+  trustDomain: over.trustDomain ?? 'provider-alpha',
+  providerGroup: over.providerGroup ?? `${over.trustDomain ?? 'provider-alpha'}-prod`,
   blockchainId: CHAIN,
   evmChainId: 43114n,
   networkId: 1n,
@@ -52,23 +52,27 @@ const witness = (over: Partial<WitnessObservation> = {}): WitnessObservation => 
   ...over,
 });
 
-describe('quorum counts independent trust domains, not URLs', () => {
+describe('quorum counts witnesses independent by provider group and trust domain', () => {
   it('agrees when two independent providers report the same hash', () => {
     const r = evaluateQuorum(
-      [witness(), witness({ endpointId: 'e2', trustDomain: 'provider-beta' })],
+      [
+        witness(),
+        witness({ endpointId: 'e2', trustDomain: 'provider-beta', providerGroup: 'beta-prod' }),
+      ],
       expected,
       policy,
       NOW,
     );
     expect(r.outcome).toBe('agreed');
     expect(r.agreeingTrustDomains).toEqual(['provider-alpha', 'provider-beta']);
+    expect(r.agreeingProviderGroups).toEqual(['beta-prod', 'provider-alpha-prod']);
     expect(r.blockHash).toBe(HASH_A);
   });
 
   it('refuses a single endpoint under a policy requiring two domains', () => {
     const r = evaluateQuorum([witness()], expected, policy, NOW);
     expect(r.outcome).toBe('insufficient-witnesses');
-    expect(r.reasons.join(' ')).toContain('independent trust domain');
+    expect(r.reasons.join(' ')).toContain('provider group and trust domain');
   });
 
   it('counts three URLs from one provider as one witness', () => {
@@ -95,6 +99,28 @@ describe('quorum counts independent trust domains, not URLs', () => {
     );
     expect(r.outcome).toBe('insufficient-witnesses');
     expect(r.agreeingTrustDomains).toEqual(['provider-alpha']);
+  });
+
+  it('counts distinct trust domains inside one provider group as one witness', () => {
+    const r = evaluateQuorum(
+      [
+        witness({
+          endpointId: 'e1',
+          trustDomain: 'account-a',
+          providerGroup: 'provider-alpha-prod',
+        }),
+        witness({
+          endpointId: 'e2',
+          trustDomain: 'account-b',
+          providerGroup: 'provider-alpha-prod',
+        }),
+      ],
+      expected,
+      policy,
+      NOW,
+    );
+    expect(r.outcome).toBe('insufficient-witnesses');
+    expect(r.agreeingProviderGroups).toEqual(['provider-alpha-prod']);
   });
 });
 

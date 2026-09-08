@@ -23,8 +23,8 @@ export const ALL_SCENARIOS: readonly Scenario[] = [
   ...operationsScenarios,
 ];
 
-const result = runLab(ALL_SCENARIOS);
 const surface = scanForbiddenSurface();
+const result = runLab(ALL_SCENARIOS, surface.length);
 
 describe('fault lab', () => {
   it('has a corpus with a control in every family', () => {
@@ -44,6 +44,11 @@ describe('fault lab', () => {
     for (const s of ALL_SCENARIOS) {
       expect(s.provenance.length, `${s.id} has no provenance`).toBeGreaterThan(10);
       expect(Object.keys(s.pinned).length, `${s.id} pins no inputs`).toBeGreaterThan(0);
+      expect(
+        Object.values(s.fixed).every((value) => value.length > 0),
+        `${s.id} has an incomplete fixed fixture`,
+      ).toBe(true);
+      expect(s.expect.digest.length, `${s.id} has no digest rule`).toBeGreaterThan(0);
     }
   });
 
@@ -62,13 +67,19 @@ describe('fault lab', () => {
   });
 
   it('counter 4: no signing, chain-write or auto-pause surface anywhere', () => {
-    expect(surface.map((f) => `${f.file}: ${f.what}`)).toEqual([]);
+    expect(
+      result.counters.forbiddenSurfaces,
+      surface.map((f) => `${f.file}: ${f.what}`).join('\n'),
+    ).toBe(0);
   });
 
   it('counter 5: no secret canary reaches any outbound surface', () => {
     const canary = result.rows.find((r) => r.scenario.id === 'evidence/secret-canary-never-leaves');
     expect(canary, 'the canary scenario is missing from the corpus').toBeDefined();
-    expect(canary?.findings ?? []).toEqual([]);
+    expect(
+      result.counters.secretCanaryLeaks,
+      canary?.findings.map((f) => f.detail).join('\n'),
+    ).toBe(0);
   });
 
   it('every scenario meets its declared expectation', () => {

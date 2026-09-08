@@ -90,6 +90,7 @@ export interface PinnedBlockContext {
   readonly basis: 'accepted-latest' | 'finalized-tag';
   readonly evidence: AcceptedStateEvidence;
   readonly agreeingTrustDomains: readonly string[];
+  readonly agreeingProviderGroups: readonly string[];
   readonly agreeingEndpointIds: readonly string[];
   readonly observedAtMs: number;
   readonly expiresAtMs: number;
@@ -147,6 +148,7 @@ export const buildPinnedContext = (input: PinInput): PinResult => {
       basis: input.capability.basis,
       evidence: input.capability.evidence,
       agreeingTrustDomains: input.quorum.agreeingTrustDomains,
+      agreeingProviderGroups: input.quorum.agreeingProviderGroups,
       agreeingEndpointIds: input.quorum.agreeingEndpointIds,
       observedAtMs: input.observedAtMs,
       expiresAtMs: input.observedAtMs + input.freshnessMs,

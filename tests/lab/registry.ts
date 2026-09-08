@@ -38,18 +38,19 @@ export type Corpus = (typeof CORPORA)[number];
 export const NEVER_OK: readonly Corpus[] = ['gap', 'rpc', 'fingerprint', 'unsupported'];
 
 export interface Expectation {
-  readonly protocolStatus?: ProtocolStatus;
-  readonly dataStatus?: DataStatus;
+  /** null means the fixture exercises a pre-verdict boundary. */
+  readonly protocolStatus: ProtocolStatus | null;
+  readonly dataStatus: DataStatus | null;
   /** Every code listed must appear. Extra codes are allowed. */
-  readonly reasonCodes?: readonly string[];
-  readonly exitCode?: number;
+  readonly reasonCodes: readonly string[];
+  readonly exitCode: number | null;
   /**
    * `stable` means: the same pinned input must produce the same digest on every
    * run. A literal string pins an exact digest.
    */
-  readonly digest?: 'stable' | string;
+  readonly digest: string;
   /** Named properties the scenario asserts about itself. */
-  readonly holds?: readonly string[];
+  readonly holds: readonly string[];
 }
 
 export interface Observed {
@@ -72,9 +73,55 @@ export interface Scenario {
   readonly provenance: string;
   /** Fixed chain, block, hash, time and amount inputs. No clock, no randomness. */
   readonly pinned: Readonly<Record<string, string>>;
+  readonly fixed: {
+    readonly chain: string;
+    readonly blockNumber: string;
+    readonly blockHash: string;
+    readonly observedAt: string;
+    readonly amount: string;
+  };
   readonly expect: Expectation;
   run: () => Observed;
 }
+
+export type ScenarioInput = Omit<Scenario, 'fixed' | 'expect'> & {
+  readonly fixed?: Partial<Scenario['fixed']>;
+  readonly expect: Partial<Expectation>;
+};
+
+const FIXTURE_DEFAULTS: Scenario['fixed'] = {
+  chain: 'avalanche-c-chain-fixture',
+  blockNumber: '1000',
+  blockHash: `0x${'11'.repeat(32)}`,
+  observedAt: '2026-06-01T00:00:00.000Z',
+  amount: '0',
+};
+
+/** Materialise every fixture field so the corpus is portable and auditable. */
+export const defineScenarios = (inputs: readonly ScenarioInput[]): readonly Scenario[] =>
+  inputs.map((input) => ({
+    ...input,
+    fixed: {
+      ...FIXTURE_DEFAULTS,
+      blockNumber: input.pinned.blockNumber ?? input.pinned.height ?? FIXTURE_DEFAULTS.blockNumber,
+      blockHash: input.pinned.blockHash ?? input.pinned.hashA ?? FIXTURE_DEFAULTS.blockHash,
+      amount:
+        input.pinned.amount ??
+        input.pinned.transferredBalance ??
+        input.pinned.U ??
+        FIXTURE_DEFAULTS.amount,
+      ...input.fixed,
+    },
+    expect: {
+      protocolStatus: null,
+      dataStatus: null,
+      reasonCodes: [],
+      exitCode: null,
+      digest: 'stable-observed-output',
+      holds: [],
+      ...input.expect,
+    },
+  }));
 
 export interface Finding {
   readonly scenarioId: string;
@@ -106,6 +153,10 @@ export interface LabResult {
     readonly falseOks: number;
     /** Same pinned input, different digest or verdict across two runs. */
     readonly digestDrift: number;
+    /** Static forbidden surface findings. */
+    readonly forbiddenSurfaces: number;
+    /** Canary scenario missing or failing its outbound checks. */
+    readonly secretCanaryLeaks: number;
   };
   readonly findings: readonly Finding[];
 }
@@ -150,24 +201,28 @@ const evaluate = (scenario: Scenario): LabRow => {
   }
 
   const { expect: want } = scenario;
-  if (want.protocolStatus !== undefined && first.protocolStatus !== want.protocolStatus) {
+  if (scenario.corpus === 'deterministic-breach' && first.protocolStatus !== 'CRITICAL') {
     findings.push({
       scenarioId: scenario.id,
-      kind:
-        scenario.corpus === 'deterministic-breach' && want.protocolStatus === 'CRITICAL'
-          ? 'false-negative'
-          : 'wrong-protocol-status',
+      kind: 'false-negative',
+      detail: `deterministic breach observed ${first.protocolStatus ?? 'no protocol status'}`,
+    });
+  }
+  if (want.protocolStatus !== null && first.protocolStatus !== want.protocolStatus) {
+    findings.push({
+      scenarioId: scenario.id,
+      kind: 'wrong-protocol-status',
       detail: `expected ${want.protocolStatus}, observed ${first.protocolStatus ?? 'nothing'}`,
     });
   }
-  if (want.dataStatus !== undefined && first.dataStatus !== want.dataStatus) {
+  if (want.dataStatus !== null && first.dataStatus !== want.dataStatus) {
     findings.push({
       scenarioId: scenario.id,
       kind: 'wrong-data-status',
       detail: `expected ${want.dataStatus}, observed ${first.dataStatus ?? 'nothing'}`,
     });
   }
-  const absent = missing(want.reasonCodes ?? [], first.reasonCodes ?? []);
+  const absent = missing(want.reasonCodes, first.reasonCodes ?? []);
   if (absent.length > 0) {
     findings.push({
       scenarioId: scenario.id,
@@ -175,21 +230,21 @@ const evaluate = (scenario: Scenario): LabRow => {
       detail: `expected ${absent.join(', ')}`,
     });
   }
-  if (want.exitCode !== undefined && first.exitCode !== want.exitCode) {
+  if (want.exitCode !== null && first.exitCode !== want.exitCode) {
     findings.push({
       scenarioId: scenario.id,
       kind: 'wrong-exit-code',
       detail: `expected ${String(want.exitCode)}, observed ${String(first.exitCode ?? -1)}`,
     });
   }
-  if (typeof want.digest === 'string' && want.digest !== 'stable' && first.digest !== want.digest) {
+  if (!want.digest.startsWith('stable') && first.digest !== want.digest) {
     findings.push({
       scenarioId: scenario.id,
       kind: 'digest-drift',
       detail: `expected digest ${want.digest}, observed ${first.digest ?? 'none'}`,
     });
   }
-  const notHeld = missing(want.holds ?? [], first.holds ?? []);
+  const notHeld = missing(want.holds, first.holds ?? []);
   if (notHeld.length > 0) {
     findings.push({
       scenarioId: scenario.id,
@@ -212,9 +267,10 @@ const evaluate = (scenario: Scenario): LabRow => {
   return { scenario, observed: first, findings };
 };
 
-export const runLab = (scenarios: readonly Scenario[]): LabResult => {
+export const runLab = (scenarios: readonly Scenario[], forbiddenSurfaceCount = 0): LabResult => {
   const rows = scenarios.map(evaluate);
   const findings = rows.flatMap((r) => r.findings);
+  const canary = rows.find((row) => row.scenario.id === 'evidence/secret-canary-never-leaves');
   return {
     rows,
     findings,
@@ -222,6 +278,8 @@ export const runLab = (scenarios: readonly Scenario[]): LabResult => {
       falseNegatives: findings.filter((f) => f.kind === 'false-negative').length,
       falseOks: findings.filter((f) => f.kind === 'false-ok').length,
       digestDrift: findings.filter((f) => f.kind === 'digest-drift').length,
+      forbiddenSurfaces: forbiddenSurfaceCount,
+      secretCanaryLeaks: canary === undefined || canary.findings.length > 0 ? 1 : 0,
     },
   };
 };

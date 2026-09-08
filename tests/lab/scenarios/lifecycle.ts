@@ -14,7 +14,7 @@ import {
   sendRetried,
 } from '@ictt-sentinel/testkit';
 import type { TransitionInput } from '@ictt-sentinel/state-machine';
-import type { Observed, Scenario } from '../registry.js';
+import { defineScenarios, type Observed } from '../registry.js';
 
 /**
  * Message lifecycle faults.
@@ -49,7 +49,7 @@ const derive = (inputs: readonly TransitionInput[]): Observed => {
   };
 };
 
-export const lifecycleScenarios: readonly Scenario[] = [
+export const lifecycleScenarios = defineScenarios([
   {
     id: 'lifecycle/delivered-is-not-executed',
     title: 'A delivered message whose execution failed is never EXECUTED_SUCCESS',
@@ -89,7 +89,7 @@ export const lifecycleScenarios: readonly Scenario[] = [
   {
     id: 'lifecycle/duplicate-effect-surfaced',
     title: 'Two distinct destination effects are surfaced, never deduplicated',
-    corpus: 'deterministic-breach',
+    corpus: 'operational',
     provenance: 'docs/INVARIANTS.md; double credit',
     pinned: { destinationEffects: '2' },
     // Surfacing is the whole point: collapsing them would hide a double credit
@@ -166,10 +166,7 @@ export const lifecycleScenarios: readonly Scenario[] = [
     expect: { holds: ['idempotent'] },
     run: () => {
       const once = deriveState(reduceAll(messageKey(), happyPath()), CONTEXT);
-      const twice = deriveState(
-        reduceAll(messageKey(), [...happyPath(), ...happyPath()]),
-        CONTEXT,
-      );
+      const twice = deriveState(reduceAll(messageKey(), [...happyPath(), ...happyPath()]), CONTEXT);
       return {
         holds:
           once.state === twice.state && once.effect.count === twice.effect.count
@@ -178,4 +175,4 @@ export const lifecycleScenarios: readonly Scenario[] = [
       };
     },
   },
-];
+]);
