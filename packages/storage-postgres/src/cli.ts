@@ -33,6 +33,11 @@ const main = async (argv: readonly string[]): Promise<number> => {
       // Requires a superuser connection, and is expected to run once per cluster.
       await ensureRoles(db.sql);
       process.stdout.write(`roles ensured on ${db.label}\n`);
+      // The bootstrap DSN intentionally points at the maintenance database.
+      // Applying application migrations there would both violate that boundary
+      // and fail ownership checks. Migration is a separate invocation against
+      // the operator-created, migrator-owned application database.
+      return 0;
     }
     const result = await migrate(db, { role: MIGRATOR_ROLE });
     process.stdout.write(
