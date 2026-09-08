@@ -7,19 +7,26 @@
     "declaration": false,
     "declarationMap": false,
     "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "//paths": "Mirrors the alias in vitest.config.ts. Files under tests/ are not members of any workspace package, so without this the linter sees @ictt-sentinel/* as `any` and every type-aware rule goes quiet. Build resolution is unaffected: tsconfig.build.json uses project references.",
     "paths": {
       "@ictt-sentinel/*": ["./packages/*/src/index.ts", "./apps/*/src/index.ts"]
     }
   },
+  "//include": "`.tsx` and the console's e2e and build configs are here too: a file the linter cannot see is a file its type-aware rules stay silent about, which is the quiet way a gate stops gating.",
   "include": [
     "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
     "packages/*/src/**/*.ts",
     "apps/*/test/**/*.ts",
+    "apps/*/test/**/*.tsx",
     "packages/*/test/**/*.ts",
+    "apps/*/e2e/**/*.ts",
     "tests/**/*.ts",
-    "*.config.ts"
+    "*.config.ts",
+    "apps/*/*.config.ts"
   ],
   "exclude": ["node_modules", "**/dist", ".tooling"]
 }

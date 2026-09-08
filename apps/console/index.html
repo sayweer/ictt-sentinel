@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Content Security Policy.
+
+      A meta CSP so the policy travels with the artifact even when it is served by
+      a host nobody configured for it. The serving host SHOULD also send these as
+      real headers, plus the ones a meta tag cannot express
+      (X-Frame-Options / frame-ancestors, Referrer-Policy, HSTS); see
+      docs/adr/0009-console-stack.md.
+
+      `connect-src 'self'` is the load-bearing one: the console talks to the API on
+      its own origin and to nothing else. There is no RPC endpoint it could reach
+      and no third-party collector it could report to.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+    <title>ictt-sentinel — operator console</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      This console renders evidence that the hosted API returns, which requires JavaScript. The
+      command line interface needs none: run <code>ictt-sentinel check</code> instead.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -12,6 +12,7 @@ PDF document.pdf
 # Node / pnpm
 node_modules/
 dist/
+dist-web/
 build/
 coverage/
 .pnpm-store/

@@ -15,6 +15,10 @@
     "verify:config": "node scripts/verify-config.mjs",
     "verify:scaffold": "node scripts/verify-scaffold.mjs",
     "verify:containers": "node scripts/verify-containers.mjs",
+    "verify:supply-chain": "node scripts/verify-supply-chain.mjs",
+    "supply-chain:write": "node scripts/verify-supply-chain.mjs --write",
+    "console:build": "pnpm --filter @ictt-sentinel/console run build:web",
+    "verify:bundle": "node scripts/verify-bundle.mjs",
     "secrets:check": "node scripts/check-secrets.mjs",
     "boundaries:check": "node scripts/check-boundaries.mjs",
     "format:check": "prettier --check .",
@@ -24,10 +28,12 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "lab": "vitest run --project lab",
     "build": "tsc --build tsconfig.build.json",
     "cli": "node apps/cli/dist/index.js",
     "clean": "tsc --build --clean tsconfig.build.json",
-    "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run verify:containers && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "verify": "pnpm run bootstrap:check && pnpm run verify:config && pnpm run verify:scaffold && pnpm run verify:containers && pnpm run console:build && pnpm run verify:bundle && pnpm run verify:supply-chain && pnpm run secrets:check && pnpm run boundaries:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "test:e2e": "pnpm --filter @ictt-sentinel/console run test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

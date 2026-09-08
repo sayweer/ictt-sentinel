@@ -253,6 +253,39 @@ böylece `| jq` filtresiz çalışır.
 > değildir**. Dosyayı düzenleyebilen hash'i de yeniden hesaplayabilir. Verifier bunu kendi
 > çıktısında açıkça yazar.
 
+## Operatör konsolu (opsiyonel, salt-okunur)
+
+`apps/console` hosted API'yi görünür kılan statik bir React arayüzüdür. **Tarayıcı zincire
+bağlanmaz:** RPC istemcisi, wallet bağlantısı, signer ve transaction gönderen yüzey yoktur;
+konsol hiçbir baseline'ı onaylayamaz.
+
+```bash
+pnpm run console:build     # apps/console/dist-web üretir
+pnpm run verify:bundle     # üretilen artefaktı denetler (Node-only import, secret, CSP, source map)
+pnpm run test:e2e          # gerçek tarayıcıda, gerçek bundle ile (Playwright)
+```
+
+`dist-web/` statik dosyalarını hosted API'yi fronte eden host servis eder. Konsol API'ye
+**same-origin** konuşur; mutlak URL kabul etmez.
+
+**Token:** yalnız sekme belleğinde tutulur — `localStorage` yok, cookie yok, URL parametresi yok,
+log yok. Reload'da yeniden girilir. Alternatif olarak header'ı ekleyen bir authenticating reverse
+proxy arkasına konabilir.
+
+**Sunucunun göndermesi gereken header'lar** (meta CSP artefaktla gelir, ama yeterli değildir):
+
+```
+Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self';
+  img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none';
+  base-uri 'none'; frame-ancestors 'none'; object-src 'none'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+Ayrıntı ve stack gerekçesi: `docs/adr/0009-console-stack.md`.
+
 ## Çalışma düzeni: prompt / milestone
 
 Bu repository numaralı milestone promptlarıyla yürütülür.

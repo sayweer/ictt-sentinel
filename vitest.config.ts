@@ -23,7 +23,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: 'unit',
-          include: ['{apps,packages}/*/test/**/*.test.ts'],
+          include: ['{apps,packages}/*/test/**/*.test.{ts,tsx}'],
           environment: 'node',
           // Lower group runs first, and alone. The integration project contains
           // architecture.test.ts, which writes deliberate boundary violations
@@ -40,6 +40,18 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
+          environment: 'node',
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          // The deterministic fault lab. Its own project so `pnpm run lab` can
+          // run the whole adversarial corpus as one command, and so a lab
+          // failure is never mistaken for an ordinary unit-test failure.
+          name: 'lab',
+          include: ['tests/lab/**/*.test.ts'],
           environment: 'node',
           sequence: { groupOrder: 1 },
         },

@@ -131,7 +131,10 @@ function tsFiles(dir, out = []) {
     if (entry === 'node_modules' || entry === 'dist') continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) tsFiles(full, out);
-    else if (entry.endsWith('.ts') && !entry.endsWith('.d.ts')) out.push(full);
+    // `.tsx` too: a component file that imported node:fs or a workspace package
+    // it may not depend on would otherwise be invisible to this gate, which is
+    // the one way a checker like this fails silently.
+    else if (/\.tsx?$/.test(entry) && !entry.endsWith('.d.ts')) out.push(full);
   }
   return out;
 }
@@ -226,7 +229,7 @@ function scanSurface(dir) {
       scanSurface(full);
       continue;
     }
-    if (!/\.(ts|mts|mjs|js)$/.test(entry)) continue;
+    if (!/\.(tsx?|mts|mjs|jsx?)$/.test(entry)) continue;
     const rel = relative(ROOT, full);
     if (SURFACE_EXEMPT.has(rel)) continue;
     const text = readFileSync(full, 'utf8');

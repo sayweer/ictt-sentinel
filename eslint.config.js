@@ -6,7 +6,13 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '.tooling/**'],
+    ignores: [
+      '**/dist/**',
+      '**/dist-web/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '.tooling/**',
+    ],
   },
 
   js.configs.recommended,
@@ -14,7 +20,7 @@ export default tseslint.config(
   // Typed linting applies to TypeScript sources only. Config and tooling files
   // are plain Node modules and are not part of the typed program.
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: {
       parserOptions: {
@@ -60,7 +66,7 @@ export default tseslint.config(
   // Tests exercise rejection paths on purpose, so they deliberately pass values
   // the types forbid. That is the point of the test, not a lapse.
   {
-    files: ['**/test/**/*.ts', 'tests/**/*.ts'],
+    files: ['**/test/**/*.{ts,tsx}', 'tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unnecessary-condition': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',

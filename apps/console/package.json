@@ -15,7 +15,6 @@
     "layer": 3,
     "mayDependOn": [
       "@ictt-sentinel/domain",
-      "@ictt-sentinel/config",
       "@ictt-sentinel/evidence"
     ]
   },
@@ -28,18 +27,26 @@
     "lint": "eslint .",
     "typecheck": "tsc --build --force",
     "build": "tsc --build",
+    "build:web": "vite build",
     "clean": "tsc --build --clean",
-    "test": "vitest run --root ../.."
+    "test": "vitest run --root ../..",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@ictt-sentinel/domain": "workspace:*",
-    "@ictt-sentinel/config": "workspace:*",
-    "@ictt-sentinel/evidence": "workspace:*"
+    "@ictt-sentinel/evidence": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
     "eslint": "10.9.1",
+    "happy-dom": "20.14.0",
     "typescript": "6.0.3",
+    "vite": "8.2.2",
     "vitest": "4.1.11"
   }
 }

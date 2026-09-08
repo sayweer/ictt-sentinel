@@ -112,6 +112,25 @@ jobs:
       - name: verify:scaffold
         run: pnpm run verify:scaffold
 
+      # The container gate renders the compose file through Docker, which the
+      # GitHub-hosted runner provides. It builds no image here; the image build
+      # and its hardening smoke are a release-time job, not a per-commit one.
+      - name: verify:containers
+        run: pnpm run verify:containers
+
+      # The browser artifact is rebuilt and audited on every commit, because
+      # what matters is what ends up in the file that ships.
+      - name: console:build
+        run: pnpm run console:build
+
+      - name: verify:bundle
+        run: pnpm run verify:bundle
+
+      # SBOM, license inventory, exact pins, action SHAs and image digests. The
+      # committed artifacts are compared, not regenerated, so a stale SBOM fails.
+      - name: verify:supply-chain
+        run: pnpm run verify:supply-chain
+
       - name: secrets:check
         run: pnpm run secrets:check
 
@@ -131,6 +150,12 @@ jobs:
         run: pnpm run test
         env:
           ICTT_SENTINEL_TEST_DATABASE_URL: postgres://ictt_admin:ci-local-only@127.0.0.1:5432/ictt_sentinel_test
+
+      # The deterministic fault lab, run again on its own so its five release
+      # counters name themselves in the job log rather than being one line
+      # inside a 1200-test run.
+      - name: fault lab
+        run: pnpm run lab
 
       - name: build
         run: pnpm run build
