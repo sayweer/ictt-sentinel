@@ -90,3 +90,40 @@ export {
   countEconomicEffects,
 } from './transition-store.js';
 export type { TransitionRow } from './transition-store.js';
+
+export {
+  acknowledgeAlert,
+  leaseDueAlerts,
+  foldAlert,
+  readAlerts,
+  settleAlert,
+} from './alert-store.js';
+export type {
+  AlertLifecycleState,
+  AlertOutboxRow,
+  DeliveryRecord,
+  FoldDecision,
+  FoldResult,
+  IncidentContext,
+  OutboxStatus,
+} from './alert-store.js';
+
+export {
+  IdempotencyPayloadConflictError,
+  appendAudit,
+  claimIdempotency,
+  claimNonce,
+  findGrant,
+  findTokenByHash,
+  listGrants,
+  recordIdempotentResponse,
+  sweepIdempotency,
+  sweepNonces,
+} from './hosted-store.js';
+export type {
+  AuditEntry,
+  DeploymentGrant,
+  IdempotencyLookup,
+  StoredResponse,
+  TokenIdentity,
+} from './hosted-store.js';

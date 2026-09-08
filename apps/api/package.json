@@ -35,12 +35,13 @@
     "test": "vitest run --root ../.."
   },
   "dependencies": {
-    "@ictt-sentinel/domain": "workspace:*",
+    "@ictt-sentinel/alerts": "workspace:*",
     "@ictt-sentinel/config": "workspace:*",
-    "@ictt-sentinel/invariant-core": "workspace:*",
+    "@ictt-sentinel/domain": "workspace:*",
     "@ictt-sentinel/evidence": "workspace:*",
+    "@ictt-sentinel/invariant-core": "workspace:*",
     "@ictt-sentinel/storage-postgres": "workspace:*",
-    "@ictt-sentinel/alerts": "workspace:*"
+    "fastify": "5.12.3"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

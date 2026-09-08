@@ -56,16 +56,36 @@ export const readPendingHints = async (
   deploymentId: string,
   chainKey: string,
   limit: number,
-): Promise<readonly { suggestedBlockNumber: bigint; dedupKey: string }[]> => {
-  const rows = await db.sql<{ suggested_block_number: string; dedup_key: string }[]>`
-    select suggested_block_number::text, dedup_key from webhook_hints
+): Promise<
+  readonly {
+    hintId: string;
+    suggestedBlockNumber: bigint;
+    source: HintRow['source'];
+    dedupKey: string;
+    receivedAt: Date;
+  }[]
+> => {
+  const rows = await db.sql<
+    {
+      hint_id: string;
+      suggested_block_number: string;
+      source: HintRow['source'];
+      dedup_key: string;
+      received_at: Date;
+    }[]
+  >`
+    select hint_id, suggested_block_number::text, source, dedup_key, received_at
+    from webhook_hints
     where deployment_id = ${deploymentId} and chain_key = ${chainKey} and consumed_at is null
     order by received_at
     limit ${limit}
   `;
   return rows.map((r) => ({
+    hintId: r.hint_id,
     suggestedBlockNumber: BigInt(r.suggested_block_number),
+    source: r.source,
     dedupKey: r.dedup_key,
+    receivedAt: r.received_at,
   }));
 };
 
