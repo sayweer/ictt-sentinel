@@ -85,11 +85,7 @@ export const observe = (existing: AlertRecord, observation: Observation): AlertR
  * deployment are different things, and conflating them is how a live breach
  * disappears from a dashboard.
  */
-export const acknowledge = (
-  existing: AlertRecord,
-  by: string,
-  at: Date,
-): AlertRecord => ({
+export const acknowledge = (existing: AlertRecord, by: string, at: Date): AlertRecord => ({
   ...existing,
   state: existing.state === 'recovered' ? 'recovered' : 'acknowledged',
   acknowledgedBy: by,

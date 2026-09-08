@@ -231,9 +231,7 @@ export const createLogSource = (options: LogSourceOptions): LogSourcePort => {
             logs,
             blocks,
             complete: true,
-            viaArchive: endpointsOf(chainKey, providerGroup).some(
-              (e) => e.archiveDepth === 'full',
-            ),
+            viaArchive: endpointsOf(chainKey, providerGroup).some((e) => e.archiveDepth === 'full'),
           },
         };
       } catch (e) {

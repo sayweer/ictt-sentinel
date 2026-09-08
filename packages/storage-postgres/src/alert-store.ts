@@ -1,4 +1,4 @@
-import type { Db, Tx } from './client.js';
+import { advisoryLockKey, type Db, type Tx } from './client.js';
 
 /**
  * The alert outbox.
@@ -130,6 +130,12 @@ export const foldAlert = async (
   fold: (context: IncidentContext) => FoldDecision,
 ): Promise<FoldResult> =>
   db.sql.begin(async (tx: Tx) => {
+    // A row lock cannot serialize the first observation because there is no row
+    // to lock yet. The stable incident lock covers both that empty-set case and
+    // later transitions, including two processes racing during a rolling
+    // restart. It is transaction scoped and therefore released on crash.
+    const [a, b] = advisoryLockKey(`alert/${keys.incidentKey}`);
+    await tx`select pg_advisory_xact_lock(${a}::int, ${b}::int)`;
     // Ordered lock acquisition: the incident group first, then the specific row,
     // so two concurrent folds on the same incident cannot deadlock each other.
     const incidentRows = await tx<OutboxColumns[]>`

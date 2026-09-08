@@ -69,8 +69,7 @@ export const deliver = async (options: DeliverOptions): Promise<DeliveryReport> 
     };
 
   const check = checkTargetUrl(url);
-  if (!check.ok)
-    return { ...base, outcome: 'rejected', reason: check.reason ?? 'target refused' };
+  if (!check.ok) return { ...base, outcome: 'rejected', reason: check.reason ?? 'target refused' };
 
   const controller = new AbortController();
   const timer = setTimeout(() => {

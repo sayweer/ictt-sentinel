@@ -29,7 +29,11 @@ export const chainKeyOf = (deploymentId: string, chainName: string): string =>
 export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan => {
   const deploymentId = manifest.metadata.name;
   const sides = [
-    { name: manifest.spec.home.name, chain: manifest.spec.home.chain, from: manifest.spec.home.tokenHome.deploymentBlock },
+    {
+      name: manifest.spec.home.name,
+      chain: manifest.spec.home.chain,
+      from: manifest.spec.home.tokenHome.deploymentBlock,
+    },
     ...manifest.spec.remotes.map((r) => ({
       name: r.name,
       chain: r.chain,

@@ -51,8 +51,10 @@ export interface RangeReport {
 
 export interface ReplayReport {
   readonly ranges: readonly RangeReport[];
+  readonly acceptedHead: bigint;
   readonly checkpointBefore: bigint | null;
   readonly checkpointAfter: bigint | null;
+  readonly gapCount: number;
   readonly status: ReplayStatus;
   readonly verdict: 'OK' | 'UNKNOWN' | 'WARN' | 'CRITICAL';
   readonly reasons: readonly ReplayReason[];
@@ -319,8 +321,10 @@ export const runReplay = async (
 
   return {
     ranges: reports,
+    acceptedHead: head,
     checkpointBefore,
     checkpointAfter: after?.lastBlockNumber ?? null,
+    gapCount: assessment.gaps.length,
     status: assessment.status,
     verdict: assessment.verdict,
     reasons: assessment.reasons,

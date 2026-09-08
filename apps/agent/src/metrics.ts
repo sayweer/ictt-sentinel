@@ -111,7 +111,9 @@ export class MetricsRegistry {
         lines.push(`${metric.name}${rendered} ${String(series.value)}`);
       }
     }
-    lines.push('# HELP ictt_sentinel_metric_samples_dropped_total Samples refused by the label policy or the series cap.');
+    lines.push(
+      '# HELP ictt_sentinel_metric_samples_dropped_total Samples refused by the label policy or the series cap.',
+    );
     lines.push('# TYPE ictt_sentinel_metric_samples_dropped_total counter');
     lines.push(`ictt_sentinel_metric_samples_dropped_total ${String(this.#dropped)}`);
     return `${lines.join('\n')}\n`;
@@ -130,13 +132,13 @@ const acceptable = (labels: Labels): boolean => {
 const seriesKey = (labels: Labels): string =>
   Object.entries(labels)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${String(v)}`)
+    .map(([k, v]) => `${k}=${v}`)
     .join(',');
 
 const renderLabels = (labels: Labels): string => {
   const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return '';
-  return `{${entries.map(([k, v]) => `${k}="${String(v)}"`).join(',')}}`;
+  return `{${entries.map(([k, v]) => `${k}="${v}"`).join(',')}}`;
 };
 
 /**
@@ -150,12 +152,18 @@ export const AGENT_METRICS = {
   jobs: 'ictt_sentinel_agent_jobs_total',
   queueDepth: 'ictt_sentinel_agent_queue_depth',
   backpressure: 'ictt_sentinel_agent_backpressure_rejected_total',
+  replayLag: 'ictt_sentinel_replay_lag_blocks',
+  acceptedHeadAge: 'ictt_sentinel_accepted_head_age_seconds',
+  providerGroupAvailability: 'ictt_sentinel_provider_group_available',
+  gapCount: 'ictt_sentinel_replay_gap_count',
+  verdicts: 'ictt_sentinel_verdict_total',
   evaluationAge: 'ictt_sentinel_evaluation_age_seconds',
   staleEvaluations: 'ictt_sentinel_stale_evaluations_total',
   unknownRules: 'ictt_sentinel_rule_unknown_total',
   alertDeliveries: 'ictt_sentinel_alert_delivery_total',
   hintQueueDepth: 'ictt_sentinel_hint_queue_depth',
   ingestAttempts: 'ictt_sentinel_hosted_ingest_total',
+  evidenceGenerationLatency: 'ictt_sentinel_evidence_generation_latency_seconds',
   lastSuccessAge: 'ictt_sentinel_last_success_age_seconds',
 } as const;
 
@@ -168,6 +176,19 @@ export const createAgentRegistry = (): MetricsRegistry => {
     'counter',
     'Submissions refused because the queue was full.',
   );
+  registry.define(AGENT_METRICS.replayLag, 'gauge', 'Accepted blocks not yet replayed.');
+  registry.define(
+    AGENT_METRICS.acceptedHeadAge,
+    'gauge',
+    'Age in seconds of the newest complete accepted-head observation.',
+  );
+  registry.define(
+    AGENT_METRICS.providerGroupAvailability,
+    'gauge',
+    'Whether the required provider-group path completed for a chain.',
+  );
+  registry.define(AGENT_METRICS.gapCount, 'gauge', 'Uncovered accepted block ranges.');
+  registry.define(AGENT_METRICS.verdicts, 'counter', 'Evaluation verdicts by result.');
   registry.define(
     AGENT_METRICS.evaluationAge,
     'gauge',
@@ -178,13 +199,22 @@ export const createAgentRegistry = (): MetricsRegistry => {
     'counter',
     'Evaluations degraded to UNKNOWN because they aged past the policy limit.',
   );
-  registry.define(AGENT_METRICS.unknownRules, 'counter', 'Rule evaluations that landed on UNKNOWN.');
+  registry.define(
+    AGENT_METRICS.unknownRules,
+    'counter',
+    'Rule evaluations that landed on UNKNOWN.',
+  );
   registry.define(AGENT_METRICS.alertDeliveries, 'counter', 'Alert deliveries by outcome.');
   registry.define(AGENT_METRICS.hintQueueDepth, 'gauge', 'Unconsumed speed hints per deployment.');
   registry.define(
     AGENT_METRICS.ingestAttempts,
     'counter',
     'Hosted-plane ingest attempts by outcome. Failure here never changes a verdict.',
+  );
+  registry.define(
+    AGENT_METRICS.evidenceGenerationLatency,
+    'gauge',
+    'Seconds spent materialising one local evaluation evidence record.',
   );
   registry.define(
     AGENT_METRICS.lastSuccessAge,

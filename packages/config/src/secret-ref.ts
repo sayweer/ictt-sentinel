@@ -184,7 +184,14 @@ export const requireSecrets = (
  * Names only: values are never read (docs/SECURITY.md 1).
  */
 export const assertNoForbiddenSecrets = (env: EnvSource): void => {
-  const present = FORBIDDEN_SECRET_NAMES.filter((n) => env[n] !== undefined);
+  const present = Object.keys(env)
+    .filter(
+      (name) =>
+        env[name] !== undefined &&
+        (FORBIDDEN_SECRET_NAMES.some((forbidden) => forbidden === name) ||
+          FORBIDDEN_FRAGMENTS.some((fragment) => name.includes(fragment))),
+    )
+    .sort();
   if (present.length > 0) {
     throw new ConfigError(
       present.map((n) =>

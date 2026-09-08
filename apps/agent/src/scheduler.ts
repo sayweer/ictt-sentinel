@@ -131,6 +131,7 @@ export class Scheduler {
       const promise = this.#execute(job).finally(() => {
         this.#lanes.delete(job.deploymentId);
         this.#inFlight.delete(promise);
+        if (!this.#draining) this.pump();
       });
       this.#inFlight.add(promise);
     }
@@ -149,28 +150,33 @@ export class Scheduler {
       const timer = setTimeout(() => {
         timeout.abort(new Error('job timeout'));
       }, this.#options.jobTimeoutMs);
-      let timedOut = false;
+      const clearJobTimer = (): void => {
+        clearTimeout(timer);
+      };
+      this.#shutdown.signal.addEventListener('abort', clearJobTimer, { once: true });
+      const combined = AbortSignal.any([this.#shutdown.signal, timeout.signal]);
       try {
-        await this.#options.run(job, AbortSignal.any([this.#shutdown.signal, timeout.signal]));
+        await this.#options.run(job, combined);
         this.#report(job, 'succeeded', attempt, started, null);
         return;
-      } catch (e) {
-        timedOut = timeout.signal.aborted;
-        lastReason = timedOut ? 'job timeout' : e instanceof Error ? e.message : 'job failed';
+      } catch {
+        if (combined.aborted && !timeout.signal.aborted) {
+          this.#report(job, 'cancelled', attempt, started, lastReason);
+          return;
+        }
+        const timedOut = timeout.signal.aborted;
+        // Arbitrary exceptions may carry an RPC URL or credential. The detailed
+        // fault stays at its typed boundary; the scheduler emits only a code.
+        lastReason = timedOut ? 'job timeout' : 'job failed';
+        if (attempt === this.#options.maxAttempts) {
+          this.#report(job, timedOut ? 'timed-out' : 'abandoned', attempt, started, lastReason);
+          return;
+        }
       } finally {
         clearTimeout(timer);
+        this.#shutdown.signal.removeEventListener('abort', clearJobTimer);
       }
 
-      if (this.#shutdown.signal.aborted) {
-        this.#report(job, 'cancelled', attempt, started, lastReason);
-        return;
-      }
-      if (attempt === this.#options.maxAttempts) {
-        // Budget exhausted. `abandoned` is deliberately not `failed`: the agent
-        // surfaces it as an unresolved deployment, never as a completed check.
-        this.#report(job, timedOut ? 'timed-out' : 'abandoned', attempt, started, lastReason);
-        return;
-      }
       try {
         await this.#options.sleep(
           this.#options.backoffMs * 2 ** (attempt - 1),
@@ -212,16 +218,22 @@ export class Scheduler {
     this.#queue.length = 0;
     this.#queuedKeys.clear();
 
-    const deadline = new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<'deadline'>((resolve) => {
+      timer = setTimeout(() => {
         this.#shutdown.abort(new Error('shutdown grace period elapsed'));
-        resolve();
+        resolve('deadline');
       }, graceMs);
       // Do not hold the event loop open just to enforce a deadline nobody needs.
       timer.unref();
     });
 
-    await Promise.race([Promise.allSettled([...this.#inFlight]).then(() => undefined), deadline]);
-    await Promise.allSettled([...this.#inFlight]);
+    const settled = Promise.allSettled([...this.#inFlight]).then(() => 'settled' as const);
+    const outcome = await Promise.race([settled, deadline]);
+    if (timer !== undefined) clearTimeout(timer);
+    // A runner is required to honour cancellation, but a broken dependency must
+    // not make shutdown itself unbounded. In-flight promises remain observed by
+    // their own catch/finally chain and cannot become unhandled rejections.
+    if (outcome === 'deadline') this.#shutdown.abort(new Error('shutdown grace period elapsed'));
   }
 }

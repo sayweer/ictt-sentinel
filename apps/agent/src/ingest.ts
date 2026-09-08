@@ -27,13 +27,7 @@ import { redact, type EvidenceBundle } from '@ictt-sentinel/evidence';
  */
 
 export type IngestOutcome =
-  | 'sent'
-  | 'duplicate'
-  | 'disabled'
-  | 'refused'
-  | 'unauthorized'
-  | 'conflict'
-  | 'unreachable';
+  'sent' | 'duplicate' | 'disabled' | 'refused' | 'unauthorized' | 'conflict' | 'unreachable';
 
 export interface IngestReport {
   readonly outcome: IngestOutcome;

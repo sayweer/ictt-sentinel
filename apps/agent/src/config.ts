@@ -1,4 +1,8 @@
-import { assertNoForbiddenSecrets, type EnvSource } from '@ictt-sentinel/config';
+import {
+  assertNoForbiddenSecrets,
+  validateSecretRefName,
+  type EnvSource,
+} from '@ictt-sentinel/config';
 import {
   DEFAULT_SHARING_LEVEL,
   TARGET_KINDS,
@@ -57,9 +61,7 @@ const int = (env: EnvSource, key: string, fallback: number, min: number, max: nu
   }
   const value = Number(raw);
   if (value < min || value > max) {
-    throw new AgentConfigError(
-      `${PREFIX}${key} must be between ${String(min)} and ${String(max)}`,
-    );
+    throw new AgentConfigError(`${PREFIX}${key} must be between ${String(min)} and ${String(max)}`);
   }
   return value;
 };
@@ -111,7 +113,11 @@ const parseTargets = (raw: string | undefined): readonly AlertTarget[] => {
     }
     // A URL here instead of an env name would put a webhook secret in the
     // process configuration, in logs, and in every crash report.
-    if (typeof secretRef !== 'string' || !SECRET_REF.test(secretRef)) {
+    if (
+      typeof secretRef !== 'string' ||
+      !SECRET_REF.test(secretRef) ||
+      validateSecretRefName(secretRef, 'secretRef').length > 0
+    ) {
       throw new AgentConfigError(
         `alert target ${targetId} must name an environment variable, not a URL`,
       );
@@ -150,7 +156,11 @@ export const loadAgentConfig = (env: EnvSource): AgentConfig => {
     if (hostedUrl === null || hostedUrl === '') {
       throw new AgentConfigError(`${PREFIX}HOSTED_URL is required above local-only sharing`);
     }
-    if (ingestTokenRef === null || !SECRET_REF.test(ingestTokenRef)) {
+    if (
+      ingestTokenRef === null ||
+      !SECRET_REF.test(ingestTokenRef) ||
+      validateSecretRefName(ingestTokenRef, 'ingestTokenRef').length > 0
+    ) {
       throw new AgentConfigError(
         `${PREFIX}INGEST_TOKEN_REF must name the environment variable holding the ingest token`,
       );

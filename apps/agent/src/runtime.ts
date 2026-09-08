@@ -7,11 +7,7 @@ import {
   type ReplayConfig,
   type ReplayReport,
 } from '@ictt-sentinel/replay';
-import {
-  markHintsConsumed,
-  readPendingHints,
-  type Db,
-} from '@ictt-sentinel/storage-postgres';
+import { markHintsConsumed, readPendingHints, type Db } from '@ictt-sentinel/storage-postgres';
 import { raiseAlert, type AlertSignal } from './alerting.js';
 import { applyFreshness, type FreshnessPolicy } from './freshness.js';
 import { AGENT_METRICS, type MetricsRegistry } from './metrics.js';
@@ -127,6 +123,13 @@ const hintsFor = async (
   return { hints, dedupKeys: pending.map((h) => h.dedupKey) };
 };
 
+const blocks = (value: bigint): number =>
+  value <= 0n
+    ? 0
+    : value > BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number.MAX_SAFE_INTEGER
+      : Number(value);
+
 export const runDeploymentTick = async (
   deps: TickDeps,
   plan: DeploymentPlan,
@@ -134,11 +137,20 @@ export const runDeploymentTick = async (
   const now = deps.now();
   const chains: { chainKey: string; report: ReplayReport }[] = [];
 
-  for (const chain of plan.chains) {
+  for (const [index, chain] of plan.chains.entries()) {
     deps.signal.throwIfAborted();
     const { hints, dedupKeys } = await hintsFor(deps, plan, chain);
     const report = await runReplay(deps.db, deps.source, chain.config, hints, now);
     chains.push({ chainKey: chain.chainKey, report });
+    const label = { deployment: plan.deploymentId, chain: `chain-${String(index + 1)}` };
+    const checkpoint = report.checkpointAfter ?? chain.config.startBlock - 1n;
+    deps.registry.set(AGENT_METRICS.replayLag, blocks(report.acceptedHead - checkpoint), label);
+    deps.registry.set(AGENT_METRICS.gapCount, report.gapCount, label);
+    deps.registry.set(
+      AGENT_METRICS.providerGroupAvailability,
+      report.status === 'complete' ? 1 : 0,
+      label,
+    );
     // Hints are consumed whatever the outcome. A hint that was considered has
     // done its only job; leaving it queued would replay the same reordering.
     if (dedupKeys.length > 0) await markHintsConsumed(deps.db, dedupKeys);
@@ -161,6 +173,13 @@ export const runDeploymentTick = async (
 
   deps.registry.set(AGENT_METRICS.evaluationAge, fresh.ageSeconds, {
     deployment: plan.deploymentId,
+  });
+  deps.registry.set(AGENT_METRICS.acceptedHeadAge, Math.max(0, fresh.ageSeconds), {
+    deployment: plan.deploymentId,
+  });
+  deps.registry.increment(AGENT_METRICS.verdicts, {
+    deployment: plan.deploymentId,
+    result: fresh.verdict,
   });
   if (fresh.stale) {
     deps.registry.increment(AGENT_METRICS.staleEvaluations, { deployment: plan.deploymentId });

@@ -27,9 +27,7 @@ export const findTokenByHash = async (
   tokenHash: string,
   now: Date,
 ): Promise<TokenIdentity | null> => {
-  const rows = await db.sql<
-    { token_id: string; tenant_id: string; scopes: string[] }[]
-  >`
+  const rows = await db.sql<{ token_id: string; tenant_id: string; scopes: string[] }[]>`
     select t.token_id, t.tenant_id, t.scopes
     from api_tokens t
     join tenants n on n.tenant_id = t.tenant_id
@@ -120,8 +118,7 @@ export class IdempotencyPayloadConflictError extends Error {
 }
 
 export type IdempotencyLookup =
-  | { readonly kind: 'fresh' }
-  | { readonly kind: 'replay'; readonly response: StoredResponse };
+  { readonly kind: 'fresh' } | { readonly kind: 'replay'; readonly response: StoredResponse };
 
 /**
  * Claim an idempotency key for one payload.
@@ -183,7 +180,8 @@ export const recordIdempotentResponse = async (
 };
 
 export const sweepIdempotency = async (db: Db, now: Date): Promise<number> => {
-  const rows = await db.sql`delete from api_idempotency where expires_at <= ${now} returning tenant_id`;
+  const rows =
+    await db.sql`delete from api_idempotency where expires_at <= ${now} returning tenant_id`;
   return rows.length;
 };
 

@@ -69,7 +69,8 @@ export const checkTargetUrl = (raw: string): TargetCheck => {
     return reject('target resolves to a private, link-local or metadata host');
   // A non-default port on an operator-supplied URL is how an internal service
   // gets reached through a public hostname; there is no legitimate need here.
-  if (url.port !== '' && url.port !== '443') return reject('target must use the default https port');
+  if (url.port !== '' && url.port !== '443')
+    return reject('target must use the default https port');
   return { ok: true };
 };
 

@@ -154,7 +154,7 @@ export const raiseAlert = async (
       payload,
       // An alert nobody should be paged about is stored, not queued: it stays in
       // the timeline without waking anyone at 3am.
-      status: (notify ? 'pending' : (existing?.status ?? 'sent')) as OutboxStatus,
+      status: notify ? 'pending' : (existing?.status ?? 'sent'),
       attempts: existing?.attempts ?? 0,
       ruleId: signal.ruleId,
       reasonCode: signal.reasonCode,
