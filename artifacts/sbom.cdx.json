@@ -8,7 +8,7 @@
       "bom-ref": "pkg:generic/ictt-sentinel",
       "name": "ictt-sentinel",
       "version": "0.0.0",
-      "description": "Keyless, read-only assurance scaffold for Avalanche ICM/ICTT deployments. No product behaviour yet.",
+      "description": "Keyless, read-only assurance and reproducible evidence for Avalanche ICM/ICTT deployments.",
       "licenses": [
         {
           "license": {

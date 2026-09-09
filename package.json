@@ -3,8 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Keyless, read-only assurance scaffold for Avalanche ICM/ICTT deployments. No product behaviour yet.",
+  "description": "Keyless, read-only assurance and reproducible evidence for Avalanche ICM/ICTT deployments.",
   "license": "UNLICENSED",
+  "homepage": "https://github.com/sayweer/ictt-sentinel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sayweer/ictt-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sayweer/ictt-sentinel/issues"
+  },
   "packageManager": "pnpm@11.10.0",
   "engines": {
     "node": ">=24.20.0 <25",

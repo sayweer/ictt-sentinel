@@ -1,8 +1,9 @@
 # Geliştirme Rehberi
 
-**Durum:** technical preview. Toolchain ve kalite kapıları kurulu (Milestone 02); config
-katmanı, deployment manifesti ve secret modeli uygulandı (Milestone 03). Ürün davranışı
-(RPC adapter, invariant motoru, ledger) henüz **yok**.
+**Durum:** technical preview. Config, query-only RPC quorum, source-locked adapter,
+invariant/state-machine, append-only ledger, watcher agent, evidence CLI, hosted API ve
+salt-okunur konsol uygulanmıştır. Canlı RPC gözlemlerinden ekonomik evidence girdisini uçtan uca
+üreten bağlantı henüz tamamlanmadığı için production/mainnet iddiası yoktur.
 
 Tam kapı: `pnpm run verify`.
 
@@ -109,7 +110,8 @@ docker compose --env-file ../../.env.local -f infra/postgres/docker-compose.yml 
 - `trust` auth, privileged mod, host network ve Docker socket mount **yoktur**.
 - Image tag değil **digest** ile pinlidir.
 
-Production uygulama container'ı bu aşamanın kapsamı **değildir**.
+Agent, API ve migration container'ları mevcuttur; production kullanımı gerçek shadow-pilot
+kanıtı ve operatörce tamamlanan release prosedürü gerektirir.
 
 Bu üründe **asla bulunmaması gereken** değişkenler:
 

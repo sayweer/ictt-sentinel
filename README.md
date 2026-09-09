@@ -1,197 +1,189 @@
+<div align="center">
+
 # ictt-sentinel
 
-> ICM / ICTT Teminat Yeterliliği ve Değişmezlik Nöbetçisi
-> *(uzun ad yalnız açıklamadır; identifier her yerde `ictt-sentinel`'dir)*
+**Keyless, read-only assurance and reproducible evidence for Avalanche ICTT deployments**
 
-> **Durum: technical preview — offline CLI ve saf invariant motoru çalışıyor.**
-> Milestone 11'in evidence/CLI teslimleri geliştirildi. Gerçek deployment manifestinden
-> census, drift ve ekonomik observation girdilerini üreten uçtan uca toplayıcı henüz bağlı değil;
-> gerçek zincir kontrolü tamamlanmış sayılmaz. Kapsam ve doğrulama: `docs/milestones/11.md`.
+[![CI](https://github.com/sayweer/ictt-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/sayweer/ictt-sentinel/actions/workflows/ci.yml)
+![Status](https://img.shields.io/badge/status-technical_preview-f59e0b)
+![Node](https://img.shields.io/badge/node-24.20.0-339933?logo=nodedotjs&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-11.10.0-f69220?logo=pnpm&logoColor=white)
+![Security](https://img.shields.io/badge/security-keyless_%7C_read--only-2563eb)
 
----
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Security model](#security-model) · [Documentation](#documentation)
 
-## Ne yapar
+</div>
 
-Bir ICTT deployment manifestini alır; home, remote, Teleporter ve zincir yapılandırmasını çoklu
-bağımsız RPC ile **pinlenmiş bloklarda** yeniden kurar; sözleşme sürümüne uygun muhasebe ve mesaj
-invariant'larını çalıştırır; her hükmü kanıt, tazelik ve varsayım bilgisiyle dışarı verir.
+> [!IMPORTANT]
+> **Release status: Technical Preview.** The pure invariant engine, evidence verifier, live
+> deployment doctor, live remote discovery, accepted-log replay, alert outbox, hosted evidence
+> API, and read-only console are implemented and tested. Live RPC observations are not yet wired
+> into an end-to-end economic evidence bundle, so this release must not be presented as a
+> production or mainnet safety system.
 
-Her değerlendirme için **`OK` / `WARN` / `CRITICAL` / `UNKNOWN`** verir.
+## What is ictt-sentinel?
 
-## Neden
+`ictt-sentinel` is a source-available technical-preview assurance toolkit for
+[Avalanche Interchain Token Transfer (ICTT)](https://build.avax.network/docs/cross-chain/interchain-token-transfer/overview)
+deployments. It helps an operator answer four questions:
 
-Resmî Avalanche ICTT dokümantasyonu bu sorumluluğu açıkça operatöre bırakır:
+1. **Am I reading the chains and contracts I intended to read?**
+2. **Do independent RPC witnesses agree on the accepted, pinned state?**
+3. **Do home-side accounting, remote supply, and message execution reconcile?**
+4. **Can another person reproduce the verdict from the exported evidence?**
 
-> "Anyone is able to deploy and register remote contracts, which may have been modified from this
-> repository. It is the responsibility of the users of the home contract to independently evaluate
-> each remote for its security and correctness."
+The toolkit is deliberately keyless. It cannot sign, submit, retry, mint, burn, upgrade, or pause
+anything. A webhook may trigger faster collection, but it can never become chain truth.
 
-Ürün, ekosistemin kendi güven modelinde operatöre bırakılmış bu işi ürünleştirir.
-Ayrıntı ve doğrulama zinciri: `docs/PRODUCT.md`, `docs/RESEARCH_SYNTHESIS.md`.
+## Why this exists
 
-## Güvenlik: sıfır signing key
+An ICTT deployment spans multiple chains and multiple contracts. A single explorer page can look
+healthy while the shared accounting is not: a remote may be unapproved, a proxy implementation may
+drift, providers may disagree, a message may be delivered but fail during application execution, or
+remote supply may exceed the corresponding home-side accounting.
 
-**Bu araç hiçbir koşulda imzalamaz, işlem göndermez, köprü durdurmaz.**
+Avalanche's ICTT model also permits remote contracts to be registered permissionlessly and places
+the responsibility for evaluating them on users of the home contract. The official
+[ICTT documentation](https://build.avax.network/docs/cross-chain/interchain-token-transfer/overview)
+describes that trust boundary. `ictt-sentinel` turns the operator's evaluation into a repeatable,
+fail-closed process.
 
-- Private key, mnemonic, seed, signer, wallet, keystore **tutmaz ve istemez**
-- `sendTransaction` veya herhangi bir **chain-write yüzeyi yoktur**
-- mint / burn / retry / pause / upgrade **çağırmaz**; auto-pause **yoktur**
-- RPC erişimi **query-only allowlist** üzerindendir; generic `request(method, params)` yüzeyi yoktur
-
-Gerekçe: `docs/adr/0001-keyless-read-only.md`. Tehdit modeli ve sınırlar: `docs/SECURITY.md`.
-Açık bildirimi: kök `SECURITY.md`.
-
-## Kimler kullanır
-
-| Rol | Kullanım |
-|---|---|
-| Avalanche L1 CTO / platform lead | Launch öncesi deployment doğrulama |
-| Protocol security / risk lead | Sürekli kontrol, olay kanıtı |
-| Token issuer operasyon yöneticisi | Teminat açığının erken tespiti |
-| Managed L1 / BaaS sağlayıcısı | Çok deployment'a paketlenmiş kontrol |
-| Security engineer, SRE, SOC analyst | Günlük operasyon ve olay müdahalesi |
-| Audit firması | Post-audit sürekli kontrol devri |
-
-## Kullanım modları (planlanan)
-
-| Mod | Ne için | Güven sınırı |
+| Typical approach | What can be missed | What ictt-sentinel adds |
 |---|---|---|
-| CLI / CI preflight | Deployment ve upgrade kapısı | Tümüyle operatör ağında |
-| Local Docker agent | Public/private L1 RPC'lerine operatör ağı içinden erişim | Ham veri dışarı çıkmaz |
-| Hosted evidence plane | Alarm, rol, retention, paylaşım | Yalnız operatörce seçilen metadata |
-| Library / policy pack | Başka güvenlik motorlarına kural üretir | Yürütme başka motorda |
+| One RPC or explorer | Provider error, stale history, chain identity mismatch | Independent trust-domain quorum and explicit block pins |
+| Message status alone | Delivery confused with successful execution | Separate delivery, execution, retry, and economic-effect states |
+| Dashboard-only monitoring | A result without replayable inputs | Canonical JSON/HTML evidence and an offline verifier |
+| Current on-chain topology | Permissionless registration treated as approval | Reviewed manifest baseline and candidate-only discovery |
+| Generic bridge alerts | ICTT decimal, collateral, and accounting semantics | Source-locked ICTT adapters and mode-specific invariants |
 
-### Veri paylaşım seviyesi — varsayılan `local-only`
+## What it provides
 
-Hosted plane opsiyoneldir; kapalıyken local evaluation, evidence ve alarm çalışmaya devam eder.
-Makineden ne çıkacağını operatör seçer ve **hosted'ı açmak bu seçimi kendiliğinden değiştirmez**:
+### Assurance engine
 
-| `ICTT_SENTINEL_SHARING_LEVEL` | Dışarı çıkan |
-|---|---|
-| `local-only` (varsayılan) | Hiçbir şey — ağa çıkılmaz |
-| `sanitized-metadata` | Hüküm alanları, reason kodları, freshness, evidence content hash ve sayımlar |
-| `approved-full` | Tam evidence bundle — yalnız operatör açıkça onayladığında |
+- Canonical ERC-20 reconciliation and coverage rules using exact `bigint` arithmetic.
+- Native-remote upper-bound assessment with deliberately narrower claims.
+- A verdict lattice of `OK`, `WARN`, `CRITICAL`, and `UNKNOWN`.
+- Fail-closed handling for missing history, incomplete census, unknown fingerprints, unsupported
+  transfer shapes, and provider disagreement.
+- A Teleporter message state machine that never equates delivery with execution.
 
-Adres, block hash, ham log, RPC endpoint ve manifest yalnız `approved-full` seviyesinde ve yalnız
-bundle'ın içinde çıkar. Notifier'lar (Slack/PagerDuty/webhook) seviyeden bağımsız olarak yalnız
-sanitize özet + evidence **referansı** alır. Ayrıntı ve rızanın geri alınması: `docs/RUNBOOK.md` §10.
+### Data and runtime
 
-## MVP kapsamı ve non-goals
+- Query-only RPC operations from a closed method allowlist.
+- Explicit block-number and block-hash pins for comparative reads.
+- Quorum counted across independent `trustDomain` values, never URL count.
+- Resumable accepted-log replay with atomic PostgreSQL checkpoints.
+- Append-only raw facts, typed data-quality incidents, freshness degradation, and crash recovery.
+- Slack, PagerDuty, and generic webhook alert delivery through a durable outbox.
 
-**MVP (P0) hedefi:** iki local/Fuji L1; canonical `ERC20TokenRemote` reconciliation;
-native modda `sufficient`/`indeterminate`/`unknown`; manifest discovery ve doctor;
-pinned-block çoklu RPC replay; delivery-vs-execution state machine; evidence bundle;
-Docker Compose local agent.
+### Evidence and operator surfaces
 
-**Bilinçli olarak ürün DEĞİL:**
-bridge · relayer · custodian · wallet · sigorta · signer tutan araç · transaction gönderen kontrol
-düzlemi · otomatik devre kesici · webhook'u zincir gerçeği sayan dashboard · ilk günden tüm
-bridge'leri destekleyen yatay platform · mutlak solvency/güvenlik sertifikası.
+- Deterministic JSON evidence bundles and derived HTML reports.
+- Offline verification that replays the pure rule engine from self-contained inputs.
+- A CLI for fixtures, configuration checks, discovery, replay, and evidence workflows.
+- A local watcher agent with health and metrics endpoints.
+- An optional hosted evidence API and a same-origin, read-only operator console.
+- A deterministic failure lab, SBOM, dependency-license inventory, and reproducible-build gate.
 
-Tam liste: `docs/PRODUCT.md` §3 ve `docs/SUPPORT_MATRIX.md` §7.
+## Verdicts
 
-## Mimari özeti
-
-```
-Versioned manifest + policy + fingerprints
-                  |
-                  v
-Webhook ------> Event intake <------ RPC A / RPC B / archive RPC
-(yalnız hız)        |                       (truth path)
-                    v
-        Reorg-aware append-only ledger
-                    |
-        Message lifecycle state machine
-                    |
-     Pinned-block state reconciler / adapters
-                    |
-        Deterministic invariant engine
-                    |
-        Evidence bundle + verdict
-```
-
-Ayrıntı: `docs/ARCHITECTURE.md`.
-
-### Klasör sorumlulukları
-
-| Yol | Sorumluluk | Katman |
+| Verdict | Meaning | Operator response |
 |---|---|---|
-| `apps/cli/` | Operatör CLI: `init`, `discover`, `doctor`, `check`, `replay`, `run`, `evidence` | 3 |
-| `apps/agent/` | Yerel salt-okunur toplayıcı daemon | 3 |
-| `apps/api/` | Hosted evidence/control API | 3 |
-| `apps/console/` | Opsiyonel salt-okunur evidence arayüzü | 3 |
-| `packages/domain/` | Paylaşılan domain tipleri. **Saf** | 0 |
-| `packages/invariant-core/` | Deterministik invariant kuralları. **Saf** | 0 |
-| `packages/state-machine/` | Mesaj yaşam döngüsü makinesi. **Saf** | 0 |
-| `packages/config/` | Manifest/policy **şeması ve doğrulaması** (kod) | 1 |
-| `packages/evidence/` | Evidence bundle formatı, canonical hash, export | 1 |
-| `packages/testkit/` | Deterministik fixture ve test yardımcıları | 1 |
-| `packages/rpc-quorum/` | Query-only allowlist'li çoklu sağlayıcı RPC witness quorum'u | 2 |
-| `packages/ictt-adapters/` | Sürüm-pinli ICTT/Teleporter sözleşme okuma adapter'ları | 2 |
-| `packages/storage-postgres/` | Append-only ledger ve evaluation kalıcılığı | 2 |
-| `packages/replay/` | Reorg-aware log replay ve checkpoint | 2 |
-| `packages/alerts/` | Giden alarm taşıyıcıları. Canonical fact **yazmaz** | 2 |
-| `config/deployments/` | Operatörün deployment manifestleri (**veri**) | — |
-| `config/policies/` | Policy dosyaları (**veri**) | — |
-| `infra/postgres/` | Yerel Postgres altyapı dosyaları | — |
-| `scripts/` | Repository bakım ve doğrulama scriptleri | — |
-| `docs/` | Ürün, mimari, güvenlik, invariant ve karar dokümantasyonu | — |
+| `OK` | Every required control is complete, fresh, and passing | Continue monitoring |
+| `WARN` | A supported policy or liveness deviation needs review | Investigate during the defined response window |
+| `CRITICAL` | Sufficient evidence proves an invariant breach | Start the incident runbook |
+| `UNKNOWN` | A required fact or trust condition could not be established | Treat it as a blind spot; never as healthy |
 
-> `packages/config` (**kod**: şema/doğrulama) ile kök `config/` (**veri**: manifest/policy)
-> karıştırılmamalıdır.
+CLI exit codes preserve that distinction: `0` = OK, `2` = CRITICAL, `3` = UNKNOWN,
+`4` = WARN, `5` = invalid input, and `6` = internal failure.
 
-**Bağımlılık yönü yalnız içe doğrudur.** `domain`, `invariant-core` ve `state-machine`
-ağ, DB, `process.env`, framework, wall-clock veya randomness **import edemez**.
-İzin verilen kenarlar her `package.json` içinde `ictt-sentinel.mayDependOn` alanındadır ve
-`pnpm run verify:config` ile denetlenir.
+## How it works
 
-## Hızlı başlangıç (local)
+```mermaid
+flowchart LR
+  M[Reviewed manifest<br/>and policy] --> Q[Independent RPC<br/>witness quorum]
+  W[Webhook hint] -. schedules only .-> R[Accepted-log replay]
+  Q --> P[Pinned chain state]
+  Q --> R
+  R --> L[(Append-only<br/>PostgreSQL ledger)]
+  P --> A[Source-locked<br/>ICTT adapters]
+  L --> S[Message lifecycle<br/>state machine]
+  A --> I[Deterministic<br/>invariant engine]
+  S --> I
+  I --> E[JSON + HTML<br/>evidence bundle]
+  E --> V[Offline verifier]
+  I --> O[Alert outbox<br/>and evidence API]
+```
 
-Ön koşullar ve platform ayrıntıları: **`docs/DEVELOPMENT.md`**.
+The manifest is the reviewed statement of what a deployment is supposed to be. Discovery produces
+a candidate and a diff; it never approves a remote. RPC endpoints are grouped by declared failure
+domain, then reads are accepted only when the required independent witnesses agree. Every economic
+comparison names both the block number and hash used on each chain.
+
+Contract interpretation is tied to the pinned
+[`ava-labs/icm-services`](https://github.com/ava-labs/icm-services) source revision documented in
+[`docs/PROTOCOL_SOURCE_LOCK.md`](docs/PROTOCOL_SOURCE_LOCK.md). An unknown runtime or proxy
+implementation produces `UNKNOWN`; it is never decoded as the nearest known version.
+
+## Security model
+
+`ictt-sentinel` is designed so monitoring access cannot become token-control access.
+
+- No private key, mnemonic, wallet, signer, transaction envelope, or chain-write method exists in
+  the product path.
+- Startup refuses environments that contain known signing-secret names.
+- Manifests hold environment-variable **names**, not endpoint URLs or credentials.
+- RPC calls pass through a closed query-only allowlist; there is no public generic
+  `request(method, params)` API.
+- The local stack runs non-root with a read-only filesystem, dropped capabilities, bounded
+  resources, and no-new-privileges.
+- Hosted sharing defaults to `local-only`. Enabling the hosted plane does not silently expand what
+  leaves the operator's machine.
+
+The complete threat model is in [`docs/SECURITY.md`](docs/SECURITY.md). Please use
+[`SECURITY.md`](SECURITY.md) for responsible disclosure.
+
+## Quick start
+
+### Prerequisites
+
+- Node.js `24.20.0` (pinned in `.nvmrc` and `.node-version`)
+- pnpm `11.10.0` (pinned in `package.json`)
+- Git
+- Docker, only for PostgreSQL and container workflows
 
 ```bash
-# 1. Doğru Node sürümüne geç (.nvmrc: 24.20.0)
+git clone https://github.com/sayweer/ictt-sentinel.git
+cd ictt-sentinel
+
 nvm use
-
-# 2. pnpm'i corepack ile etkinleştir (packageManager alanı pnpm@11.10.0'ı pinler)
 corepack enable
-
-# 3. Bağımlılıkları kur ve derle
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --ignore-scripts
 pnpm run build
+```
 
-# 4. Bütün kapılar
+Run the complete local quality gate:
+
+```bash
 pnpm run verify
 ```
 
-Kendi ortam dosyanı **sen yönetirsin**; repository gerçek `.env` içermez.
-`ictt-sentinel` hiçbir zaman secret **değerini** okumaz, yazmaz veya sormaz — manifest yalnız
-env değişkeninin **adını** tutar.
+### See all three outcomes offline
 
-### Üç fixture akışı — RPC gerekmez
-
-Aşağıdaki üç akış tamamen **offline** çalışır: public RPC, credential veya veritabanı istemez.
-Amaç, ürünün verebileceği üç cevabı da (yeşil, bilinmiyor, kırmızı) birkaç dakikada görmen.
-
-Global install **gerekmez**; binary workspace içinden çalışır. Binary adı yalnız
-`ictt-sentinel`'dir — generic `sentinel` alias'ı **yoktur**.
+These fixtures are fictional, deterministic, and require no RPC endpoint, credential, or database.
 
 ```bash
-# 1) Sağlıklı canonical ERC20  -> OK, exit 0
-pnpm --silent run cli -- check --fixture healthy;      echo "exit=$?"
+# Reconciled canonical ERC-20 -> OK, exit 0
+pnpm --silent run cli -- check --fixture healthy
 
-# 2) Provider'lar block hash üzerinde anlaşamıyor -> UNKNOWN, exit 3
-pnpm --silent run cli -- check --fixture disagreement; echo "exit=$?"
+# Independent witnesses disagree -> UNKNOWN, exit 3
+pnpm --silent run cli -- check --fixture disagreement
 
-# 3) Kanıtlı teminat/muhasebe açığı -> CRITICAL, exit 2
-pnpm --silent run cli -- check --fixture deficit;      echo "exit=$?"
+# Remote supply exceeds accounting -> CRITICAL, exit 2
+pnpm --silent run cli -- check --fixture deficit
 ```
 
-`cli` kök scripti derlenmiş workspace binary'sini çalıştırır. `--silent`, paket yöneticisinin
-ek çıktısını kapatır ve JSON stdout ile uygulamanın exit kodlarını korur.
-`pnpm --filter ... exec` bazı non-zero kodları 1'e dönüştürdüğü için CI örneklerinde kullanılmaz.
-
-Evidence üret ve **offline doğrula**:
+Export evidence and verify it offline:
 
 ```bash
 pnpm --silent run cli -- evidence export --fixture healthy
@@ -199,128 +191,213 @@ pnpm --silent run cli -- evidence verify \
   --file evidence-out/healthy.evidence.json
 ```
 
-`evidence export` iki dosya yazar: kanonik JSON ve aynı çekirdekten türetilmiş HTML.
-**HTML core hash'ini değiştirmez.** Dosyalar `0600` izinle, temp + `fsync` + `rename` ile
-atomik yazılır. Varsayılan dizin komutun çalışma dizinindeki `evidence-out`'tur;
-`pnpm --silent run cli --` repository kökünden çalıştırılır; verify yolu da aynı kökten çözülür. `--evidence-dir` yalnız operatörün belirlediği dizindir;
-bundle girdisi dosya yolu belirleyemez. Dizin private (`0700`) olmalı, symlink olamaz.
-JSON ve HTML ayrı atomik dosyalardır; ikisi tek bir filesystem transaction'ı değildir.
-SIGINT sonrası tamamlanmış JSON doğrulanabilir; HTML eksikse export yeniden çalıştırılır.
+The export contains canonical JSON and a human-readable HTML report. The JSON is written
+atomically with private file permissions. The verifier checks the bundle structure and hashes,
+then reruns the pure invariant engine. A bundle is reproducible and audit-shareable; it is not an
+external signature or tamper-proof attestation.
 
-`--version --json`, üretilen bundle ile aynı artifact checksum'ını verir. Checksum çalışan
-CLI ve workspace runtime modüllerinden hesaplanır; `buildCommit: artifact-addressed` bir Git
-commit'i iddiası değildir. Fixture kimlikleri, kontrat bytecode hash'leri ve gözlemleri
-**kurgusaldır**; `FICTIONAL_OFFLINE_FIXTURE` alanıyla işaretlenir. Tarihler sabittir:
-verifier geçmişteki değerlendirmeyi yeniden üretir, bugünün zincir sağlığını ölçmez.
-
-Offline fact taramasını sınırlı adımlarla yürüt:
+### Exercise resumable replay
 
 ```bash
 pnpm --silent run cli -- replay --fixture healthy --max-facts 1
-# İlk adım tamamlanmadığı için UNKNOWN / exit 3.
+# Incomplete range -> UNKNOWN, exit 3
+
 pnpm --silent run cli -- replay --fixture healthy --max-facts 1 --resume
-# Aynı input ve build için kalan adım: OK / exit 0.
+# Remaining fact commits -> OK, exit 0
 ```
 
-Checkpoint yalnız aynı bundle hash'i için kullanılabilir. Ayrışma/eksik kanıt checkpoint'i
-ilerletmez. Bu, bundle içindeki fact listesinin sınırlı taramasıdır; RPC log replay'i değildir.
-`check` tüm sabit snapshot'ı değerlendirir; bounded resume şu an `replay` komutundadır.
+The checkpoint is bound to the exact bundle hash. A gap or disagreement cannot advance it.
 
-`discover --fixture healthy --json` inceleme için **candidate projection** ve diff üretir;
-import edilebilir tam deployment manifesti üretmez, baseline yazmaz ve exit 3 verir.
-`doctor --json` secret adları için presence raporlar; canlı RPC/DB probe'ları bağlı olmadığı
-sürece `ready: false` verir (eksik config 5; doğrulanmamış readiness 3).
-Telemetry kapalıdır. `--help`, `--version`, `init` bilgi komutları başarıyla çalışınca 0 verir;
-bu komutlar deployment sağlık hükmü üretmez.
+## Use a real deployment
 
-`--json` makine çıktısını **stdout**'a verir; bütün insan çıktısı ve ilerleme **stderr**'a gider,
-böylece `| jq` filtresiz çalışır.
+> [!WARNING]
+> Real-deployment use is a shadow-pilot workflow. The example manifest contains fictional
+> addresses and hashes. Replace every deployment-specific value and review the resulting baseline
+> before relying on any output.
 
-### Exit kodları
+1. Copy the templates and fill in your chain identities, contracts, deployment blocks, fingerprints,
+   and policy:
 
-| Kod | Anlamı |
-|---|---|
-| `0` | **Yalnız** genel `OK` — her zorunlu kontrol complete, fresh ve pass |
-| `2` | `CRITICAL` — yeterli kanıtla deterministic ihlal (olay) |
-| `3` | `UNKNOWN` — zorunlu bir kontrol kurulamadı (kör nokta) |
-| `4` | `WARN` — policy/liveness sapması |
-| `5` | Geçersiz config veya argüman; **hiçbir şey değerlendirilmedi** |
-| `6` | Aracın kendi iç hatası — asla hüküm olarak raporlanmaz |
+   ```bash
+   cp config/deployments/example.ictt.yml deployment.yml
+   cp config/policies/default.yml policy.yml
+   cp .env.example .env.local
+   ```
 
-`2` ve `3` ayrı kodlar çünkü ayrı müdahale isterler: biri olay, diğeri kör nokta.
+2. Provide at least two operationally independent RPC trust domains per chain. Keep RPC URLs in
+   your secret manager or local environment; put only their `secretRef` names in the manifest.
 
-> **Ne değildir:** evidence bundle *reproducible* ve *audit-shareable*'dır; **tamper-proof
-> değildir**. Dosyayı düzenleyebilen hash'i de yeniden hesaplayabilir. Verifier bunu kendi
-> çıktısında açıkça yazar.
+3. Create a `pins.json` file containing an explicit accepted block number and hash for every chain:
 
-## Operatör konsolu (opsiyonel, salt-okunur)
+   ```json
+   [
+     {
+       "blockchainId": "0x<64 lowercase hex characters>",
+       "blockNumber": "123456",
+       "blockHash": "0x<64 lowercase hex characters>"
+     }
+   ]
+   ```
 
-`apps/console` hosted API'yi görünür kılan statik bir React arayüzüdür. **Tarayıcı zincire
-bağlanmaz:** RPC istemcisi, wallet bağlantısı, signer ve transaction gönderen yüzey yoktur;
-konsol hiçbir baseline'ı onaylayamaz.
+4. Verify chain identity, accepted-state behavior, archive access, proxy slots, and source-locked
+   fingerprints:
+
+   ```bash
+   pnpm run cli -- doctor \
+     --manifest deployment.yml \
+     --policy policy.yml \
+     --pins pins.json
+   ```
+
+5. Scan one policy-bounded registration range and review the candidate diff. Repeat with `--resume`
+   until the configured range is complete:
+
+   ```bash
+   pnpm run cli -- discover \
+     --manifest deployment.yml \
+     --policy policy.yml \
+     --pins pins.json \
+     --json
+   ```
+
+Discovery never edits or approves the baseline. A human must verify addresses, chain identities,
+proxy implementations, code hashes, decimals, census coverage, and RPC independence.
+
+Configured `check`, `replay`, and `evidence export` currently consume a pre-built evidence bundle:
 
 ```bash
-pnpm run console:build     # apps/console/dist-web üretir
-pnpm run verify:bundle     # üretilen artefaktı denetler (Node-only import, secret, CSP, source map)
-pnpm run test:e2e          # gerçek tarayıcıda, gerçek bundle ile (Playwright)
+pnpm run cli -- check \
+  --manifest deployment.yml \
+  --policy policy.yml \
+  --file captured.evidence.json \
+  --offline
 ```
 
-`dist-web/` statik dosyalarını hosted API'yi fronte eden host servis eder. Konsol API'ye
-**same-origin** konuşur; mutlak URL kabul etmez.
+The live doctor and discovery paths are implemented. The watcher performs live accepted-log replay,
+freshness tracking, persistence, and alert delivery. Building the economic evidence input directly
+from those live observations remains the main technical-preview gap.
 
-**Token:** yalnız sekme belleğinde tutulur — `localStorage` yok, cookie yok, URL parametresi yok,
-log yok. Reload'da yeniden girilir. Alternatif olarak header'ı ekleyen bir authenticating reverse
-proxy arkasına konabilir.
+For the full operator sequence, database role separation, controlled failure demos, and evidence
+handoff checklist, follow [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md).
 
-**Sunucunun göndermesi gereken header'lar** (meta CSP artefaktla gelir, ama yeterli değildir):
+## Local services
 
+The Docker Compose stack contains PostgreSQL, a migration job, the watcher agent, and the optional
+hosted API. Services bind to loopback in the development configuration.
+
+```bash
+# Database only
+docker compose \
+  --env-file .env.local \
+  -f infra/postgres/docker-compose.yml \
+  up -d ictt-sentinel-postgres
+
+# Render and validate the hardened service configuration
+pnpm run verify:containers
 ```
-Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self';
-  img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none';
-  base-uri 'none'; frame-ancestors 'none'; object-src 'none'
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-Referrer-Policy: no-referrer
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-```
 
-Ayrıntı ve stack gerekçesi: `docs/adr/0009-console-stack.md`.
+Agent and API profiles require the additional DSNs, mounted manifest/policy paths, and service env
+files documented in [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md) and
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-## Çalışma düzeni: prompt / milestone
+## Repository map
 
-Bu repository numaralı milestone promptlarıyla yürütülür.
-
-- **Bir turda yalnız tek milestone.** Sonraki promptun işine başlanmaz.
-- Her milestone sonunda `docs/milestones/NN.md` yazılır: değişen dosyalar, exact komut/exit,
-  kabul kriterleri, kararlar, riskler ve `GATE: PASS|BLOCKED`. Sonra **durulur**.
-- Bir milestone, öncekinin raporunda `GATE: PASS` yoksa başlamaz.
-- Proje anayasası **`CLAUDE.md`**'dir ve global ayarları geçersiz kılar.
-- Claude için ek çalışma kuralları `.claude/rules/`, yardımcı komutlar `.claude/commands/`
-  altındadır.
-
-Tamamlanan milestone'lar: `docs/milestones/`.
-
-## Dokümantasyon haritası
-
-| Dosya | İçerik |
+| Path | Responsibility |
 |---|---|
-| `CLAUDE.md` | Proje anayasası — her oturumda geçerli güvenlik ve çalışma kuralları |
-| `docs/PRODUCT.md` | Ürün sınırı, non-goals, kullanıcılar, ticari doğrulama kapısı |
-| `docs/ARCHITECTURE.md` | Katmanlar, güven sınırı, veri kaynağı önceliği, truth anchor |
-| `docs/SECURITY.md` | Tehdit modeli, anahtarsızlık, secret yönetimi, runbook |
-| `docs/INVARIANTS.md` | Kanıt sınıfları, verdict lattice, P0 kural kataloğu |
-| `docs/SUPPORT_MATRIX.md` | Ne destekleniyor, ne planlanıyor, ne desteklenmiyor |
-| `docs/PROTOCOL_SOURCE_LOCK.md` | Pinlenmiş sözleşme kaynağı, audit provenance, TBD listesi |
-| `docs/DATA_MODEL.md` | Varlıklar, manifest şeması, evidence bundle |
-| `docs/TEST_STRATEGY.md` | Fixture'lar, property/chaos testleri, kabul eşikleri |
-| `docs/ROADMAP.md` | Kapı tabanlı fazlar ve risk sicili |
-| `docs/DECISIONS.md` | ADR indeksi ve bekleyen kararlar |
-| `docs/RESEARCH_SYNTHESIS.md` | Kaynak envanteri, doğrulanmış/çıkarım/varsayım ayrımı |
-| `docs/DEVELOPMENT.md` | Kurulum, günlük komutlar, Claude Code ayarı, troubleshooting |
-| `CONTRIBUTING.md` | Milestone/diff/test/ADR düzeni |
-| `SECURITY.md` | Açık bildirimi ve disclosure sınırı |
+| `apps/cli` | Operator CLI and offline verifier |
+| `apps/agent` | Local watcher, scheduler, freshness, metrics, and alerts |
+| `apps/api` | Optional hosted evidence and webhook API |
+| `apps/console` | Read-only operator console |
+| `packages/invariant-core` | Pure deterministic accounting rules |
+| `packages/state-machine` | Pure message lifecycle model |
+| `packages/rpc-quorum` | Query-only RPC operations, pinning, and witness quorum |
+| `packages/ictt-adapters` | Source-locked ICTT/Teleporter semantics and fingerprints |
+| `packages/replay` | Accepted-log replay, completeness, and checkpoints |
+| `packages/storage-postgres` | Append-only fact ledger and durable evaluations |
+| `packages/evidence` | Canonical bundles, hashing, HTML rendering, and verification |
+| `packages/config` | Strict manifest and policy schemas |
+| `packages/alerts` | Outbound transports and sharing policy |
+| `packages/testkit` | Deterministic fixtures and test helpers |
 
-## Lisans
+Dependency direction is enforced by `pnpm run verify:config`. Pure layer-zero packages cannot
+import networking, storage, environment, clock, or randomness APIs.
 
-**Henüz belirlenmedi.** `package.json` içinde `UNLICENSED` olarak işaretlidir ve dağıtım
-hakkı verilmez. Bekleyen karar: `docs/DECISIONS.md` → "Kullanıcıdan beklenen kararlar".
+## Supported scope
+
+The current release focuses on source-locked canonical ERC-20 ICTT semantics, limited native-remote
+upper-bound reasoning, accepted-state RPC assurance, and deterministic offline evidence replay.
+
+The following produce `UNKNOWN` or remain outside the release claim:
+
+- Unknown or modified contract bytecode and unapproved proxy implementations
+- Custom, rebasing, fee-on-transfer, or otherwise non-canonical tokens
+- Multi-hop remote-to-remote and send-and-call accounting
+- Teleporter V2 source-family interpretation
+- Independent ICM BLS aggregate-signature or historical validator-set verification
+- Production/mainnet readiness without a real shadow-pilot evidence record
+
+See [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md) for the capability-by-capability status and
+[`docs/INVARIANTS.md`](docs/INVARIANTS.md) for the exact proof contracts.
+
+## Quality gates
+
+```bash
+pnpm run verify          # config, containers, bundle, supply chain, lint, types, tests, build
+pnpm run lab             # deterministic adversarial failure corpus
+pnpm run test:e2e        # real Chromium against the built console artifact
+pnpm run release:benchmark
+```
+
+The CI workflow runs the frozen install, PostgreSQL integration suite, deterministic failure lab,
+browser E2E tests, build, and reproducible-build check. Supply-chain verification rejects stale
+SBOM/license artifacts, unpinned Actions or images, non-exact dependency versions, and critical or
+high advisories.
+
+The Milestone 14 release gate recorded:
+
+- 88 deterministic fault scenarios
+- 1,214 tests with no skipped tests in the cumulative suite
+- zero false negatives in the required breach corpus
+- zero false `OK` results for gap/RPC/fingerprint/unsupported cases
+- zero signing, write, or auto-pause surfaces
+- zero critical/high dependency advisories at the recorded verification point
+
+See [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md) for evidence, limits, and the exact
+technical-preview decision.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [`docs/PRODUCT.md`](docs/PRODUCT.md) | Product boundary, users, value, and validation gate |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, trust boundaries, and data flow |
+| [`docs/INVARIANTS.md`](docs/INVARIANTS.md) | Rule catalog and proof semantics |
+| [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md) | Implemented, preview, and unsupported capabilities |
+| [`docs/PROTOCOL_SOURCE_LOCK.md`](docs/PROTOCOL_SOURCE_LOCK.md) | Pinned upstream source and audit provenance |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model and operating constraints |
+| [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md) | Shadow-pilot setup and evidence handoff |
+| [`docs/INCIDENT_RUNBOOK.md`](docs/INCIDENT_RUNBOOK.md) | `CRITICAL` and `UNKNOWN` response |
+| [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md) | Database roles, migration, backup, and recovery |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Local development and troubleshooting |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow and quality requirements |
+
+## Project status and next step
+
+The repository has passed its bounded technical-preview release gate. The next meaningful proof is
+external: one reviewed real ICTT deployment, two genuinely independent RPC providers per chain, a
+read-only shadow replay, exported evidence, and three controlled failure demonstrations in that
+pilot context. Until that evidence exists, the honest release label remains
+**`TECHNICAL_PREVIEW`**.
+
+## License
+
+No open-source license has been selected yet. The repository is currently marked `UNLICENSED`, so
+source visibility does not grant reuse or redistribution rights. An explicit license choice by the
+project owner is required before presenting the project as open source or accepting broad reuse.
+
+## Acknowledgements
+
+Built for the Avalanche ecosystem around the public
+[Avalanche Builder Hub](https://build.avax.network/docs/cross-chain),
+[`ava-labs/icm-services`](https://github.com/ava-labs/icm-services), and the operators and reviewers
+who need evidence that can be independently replayed.

@@ -64,6 +64,7 @@ değişken **adını** tutar.
 pnpm run cli -- discover \
   --manifest config/deployments/example.ictt.yml \
   --policy config/policies/default.yml \
+  --pins pins.json \
   --json > draft.json
 ```
 
@@ -120,21 +121,31 @@ Sahiplik adımı atlanamaz; gerekçesi `docs/BACKUP_RESTORE.md` §1'de.
 
 ---
 
-## 7. Deployment bloğundan replay
+## 7. Yakalanmış evidence girdisini replay et
 
 ```bash
-pnpm run cli -- replay --manifest deployment.yml --policy policy.yml
+pnpm run cli -- replay \
+  --manifest deployment.yml \
+  --policy policy.yml \
+  --file captured.evidence.json \
+  --offline
 ```
 
-Sonuç `PASS`, `VIOLATION` veya `UNKNOWN`'dır. Bounded, pinned ve resumable'dır;
-kesilirse son commit edilmiş checkpoint'ten devam eder.
+Sonuç `OK`, `WARN`, `CRITICAL` veya `UNKNOWN`'dır. Bu configured CLI yolu bugün daha önce
+yakalanmış, manifest/policy'ye bağlanabilen evidence girdisini offline yeniden oynatır. Canlı
+watcher accepted-log replay ve checkpoint üretir; ekonomik state observation'larını aynı bundle'a
+uçtan uca bağlayan collector technical-preview kapsamındaki açık iştir.
 
 ---
 
 ## 8. İlk evidence bundle
 
 ```bash
-pnpm run cli -- evidence export --manifest deployment.yml --policy policy.yml
+pnpm run cli -- evidence export \
+  --manifest deployment.yml \
+  --policy policy.yml \
+  --file captured.evidence.json \
+  --offline
 pnpm run cli -- evidence verify --file evidence-out/<digest>.evidence.json
 ```
 
