@@ -1,125 +1,201 @@
-# Katkı Rehberi
+# Contributing
 
-Kurulum ve günlük komutlar: `docs/DEVELOPMENT.md`.
-Bağlayıcı güvenlik ve çalışma kuralları: `CLAUDE.md` (bu dosya onu tekrar etmez).
+Thank you for looking at `ictt-sentinel`.
+
+Setup and day-to-day commands are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The binding
+security and working rules are in [`CLAUDE.md`](CLAUDE.md); this guide does not repeat them.
+
+Before anything else, please read [the security promise](SECURITY.md#the-invariant-security-promise).
+It is the one rule with no exceptions: **this tool never signs, never submits a transaction, and
+cannot stop a bridge.** A contribution that weakens that promise is rejected regardless of how
+useful it appears.
 
 ---
 
-## 1. Milestone düzeni
+## 1. What a good contribution looks like
 
-Bu repository numaralı milestone promptlarıyla ilerler.
+The most valuable contributions to a tool like this are, roughly in order:
 
-- **Bir turda yalnız tek milestone.** Sonraki promptun işine başlanmaz.
-- Bir milestone, öncekinin `docs/milestones/NN.md` raporunda `GATE: PASS` yoksa **başlamaz**.
-- Her milestone `docs/milestones/NN.md` ile kapanır. Rapor alanları sırayla:
-  `MILESTONE`, `GATE`, `BASELINE`, `CHANGED`, `VERIFICATION` (exact command/exit),
-  `ACCEPTANCE` (tek tek PASS/FAIL), `DECISIONS`, `OPEN_RISKS`, `SAFETY`, `BLOCKER`,
-  `NEXT`, `STOPPED`.
-- Write scope = o milestone'un açıkça saydığı teslimler + onları bağlayan **en dar**
-  config/test/doc değişikliği. Başka milestone'un dosyası gerekiyorsa kapsam büyütülmez;
-  `GATE: BLOCKED` verilir.
+1. **A scenario it gets wrong.** A case where the product reports `OK` and should not, or reports
+   `CRITICAL` and should not. Add it to the fault lab (§4) with its provenance.
+2. **A source-locked correction.** Contract semantics we read incorrectly, cited against the pinned
+   upstream commit in [`docs/PROTOCOL_SOURCE_LOCK.md`](docs/PROTOCOL_SOURCE_LOCK.md).
+3. **A tightened boundary.** A gate that can be bypassed, or a check that passes vacuously.
+4. **Operator documentation.** A runbook step that does not work in practice.
 
-## 2. Diff disiplini
+Feature requests that widen the claim surface — new asset modes, new protocol families, automated
+intervention — need an ADR (§8) before code.
 
-- **Cerrahi değişiklik:** yalnız istenen yere dokun.
-- Bozuk olmayanı refactor etme; komşu yorumları, formatting'i ve ilgisiz kodu değiştirme.
-- Mevcut style'a uy — sen farklı yazardın ama proje yapısı baskındır.
-- Kendi değişikliğinin yarattığı **yetim** import/değişken/fonksiyonu temizle;
-  eski dead code'a dokunma (gör, **mention et**, silme).
-- Test: her değişen satır bir isteğe doğrudan izlenebilir mi? Değilse çıkar.
-- Mevcut kullanıcı değişikliklerini koru. Overwrite, otomatik rollback veya toplu rewrite yok.
+## 2. Before you open a pull request
 
-## 3. Test ve kapılar
-
-Ayrıntı: `docs/TEST_STRATEGY.md`.
-
-Değişikliğini göndermeden önce **gerçekten çalıştır**:
+Run the gates. Not "it looked fine locally" — actually run them:
 
 ```bash
-pnpm run verify:config
+pnpm install --frozen-lockfile
+pnpm run verify        # the full cumulative gate
+pnpm run lab           # the deterministic fault lab and its release counters
 git diff --check
 ```
 
-Milestone 02'den itibaren ayrıca `pnpm run verify`.
+`pnpm run verify` needs a PostgreSQL instance for the integration suite. There is no mock path and
+no skip path; see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the local container.
 
-Pazarlık dışı:
+In the pull request description, state:
 
-- Test silme, `skip`/`only`, `|| true`, sessiz fallback, yalnız yeşil görünmek için mock **yasak**
-- **Çalıştırılmayan veya skipped test PASS sayılmaz**
-- TypeScript strictness düşürülemez; `@ts-ignore` / `@ts-expect-error` gerekçesiz eklenemez
-- Her yeni invariant kuralı için en az bir **pozitif ve bir negatif** fixture
+- what changed and why, in one paragraph;
+- the exact commands you ran and their exit codes;
+- anything you could not verify, and why.
 
-## 4. Mimari sınırlar
+An honest "I could not run the container smoke on this machine" is worth more than silence.
 
-- Bağımlılık yalnız **içe doğru**. İzin verilen kenarlar her `package.json` içinde
-  `ictt-sentinel.mayDependOn` alanındadır ve `verify:config` bunu denetler.
-- `domain`, `invariant-core`, `state-machine` **saf** kalır: ağ, DB, `process.env`, framework,
-  wall-clock, randomness yok.
-- **Apps business rule kopyalamaz.** Kural `invariant-core`'da yaşar.
-- Yeni bir paket eklerken `ictt-sentinel.layer` ve `mayDependOn` alanlarını doldur.
+## 3. Diff discipline
 
-## 5. Dependency kuralları
+- **Surgical changes only.** Touch what the change requires and nothing else.
+- Do not refactor what is not broken. Leave neighbouring comments, formatting and unrelated code
+  alone.
+- Match the surrounding style. You might write it differently; the existing structure wins.
+- Clean up orphans **your** change created — an import, variable or function it left unused. Do not
+  remove pre-existing dead code: mention it instead.
+- The test for every line: can it be traced directly to the stated purpose of the change? If not,
+  remove it.
+- Preserve existing work. No overwriting, no automatic rollback, no bulk rewrite.
 
-- **Exact pin zorunlu.** `^`, `~`, `latest`, `*` yasak. Lockfile commit edilir.
-- Yeni bağımlılık bir **inceleme** konusudur: neden gerekli, alternatifi ne, bakım durumu,
-  transitive yükü, lisansı.
-- Package **lifecycle scriptleri kurulmadan önce incelenir**.
-- Her SDK/dependency yükseltmesi **ADR + test** ister
-  (`docs/PROTOCOL_SOURCE_LOCK.md` §7).
-- Global install, `curl | sh`, uzaktan kod çalıştıran `npx`/`pnpx` yasak.
+## 4. Tests and gates
 
-## 6. Migration kuralları
+Details: [`docs/TEST_STRATEGY.md`](docs/TEST_STRATEGY.md).
 
-- Şema değişikliği **geri alınabilir** olmalı ve ayrı bir migration dosyasıyla gelmeli.
-- **Append-only ledger bozulmaz:** orphan kayıt silinmez, `orphaned` işaretlenir ve türetilmiş
-  state geri alınır.
-- Token miktarı taşıyan hiçbir kolon float/`DOUBLE PRECISION` olamaz.
-- Event benzersizliği en az `(chainId, blockHash, txHash, logIndex)` ile korunur.
-- Migration bir **veri kaybı** riski taşıyorsa PR açıklamasında açıkça yazılır ve
-  `docs/DECISIONS.md`'ye kayıt düşülür.
+Non-negotiable:
 
-## 7. ADR düzeni
+- Deleting a test, `skip`, `only`, `|| true`, a silent fallback, or a mock added to make a gate go
+  green is **forbidden**.
+- **A test that did not run is not a pass.** A skipped test is not a pass.
+- TypeScript strictness is never lowered. `@ts-ignore` and `@ts-expect-error` need a written reason.
+- Every new invariant rule needs at least one **positive and one negative** fixture.
 
-Bir kararı ADR yap, eğer:
+### The fault lab
 
-- Geri alınması pahalıysa (mimari, truth anchor, güven sınırı)
-- Bir güvenlik veya kanıt sınırını değiştiriyorsa
-- Bir dependency/SDK sürümünü veya source lock'ı etkiliyorsa
-- İleride "bunu neden böyle yaptık?" diye sorulacaksa
+`tests/lab/` holds the adversarial corpus: each scenario is a hostile or degraded condition, carried
+as data with its provenance, pinned inputs, and expected protocol status, data status, reason codes,
+exit code and digest rule. It drives the real engines; a scenario that stubbed the code under test
+would only prove the stub agrees with itself.
 
-Dosya: `docs/adr/NNNN-kebab-baslik.md`. Bölümler: **Bağlam → Karar → Gerekçe → Sonuçlar
-(olumlu / kabul edilen maliyet) → Alternatifler ve neden reddedildi → Doğrulama.**
+Five counters gate a release, and all five must be zero:
 
-Yeni ADR'yi `docs/DECISIONS.md` indeksine ekle. Bir ADR'yi değiştirmek yerine yenisini yazıp
-eskisini `Superseded` işaretle.
+| Counter | Meaning |
+| --- | --- |
+| False negatives | A proven breach the product did not call |
+| False OKs | Anything green in the gap, RPC, fingerprint or unsupported corpora |
+| Digest drift | The same pinned input producing a different verdict or digest twice |
+| Forbidden surface | Any signing, chain-write or auto-pause surface in the repository |
+| Secret canary leak | A planted credential reaching any outbound surface |
 
-## 8. Commit
+If you fix a bug, add the scenario that would have caught it.
 
-- **Commit ve push kullanıcının kararıdır.** Claude bunları kendiliğinden yapmaz (`CLAUDE.md` §8).
-- Bu repository **conventional commit zorunluluğu koymaz.** Mesajın anlamlı ve değişikliğin
-  kapsamını dürüstçe anlatması yeterlidir.
-- **Claude atıfı kesin yasaktır:** `Co-Authored-By: Claude`, `Claude-Session:`,
-  `Generated with Claude Code` veya benzeri hiçbir satır commit, PR, tag veya release notuna
-  eklenmez. `.claude/settings.json` bunu `attribution` ile zaten kapatır.
-- Commit öncesi `git status` ile neyin dahil olduğunu gözden geçir; secret benzeri bir dosya
-  görürsen içeriğini kontrol et.
+## 5. Architecture boundaries
 
-## 9. Dil ve iddia hijyeni
+- Dependencies point **inward only**. The permitted edges are declared in each `package.json` under
+  `ictt-sentinel.mayDependOn` and enforced by `pnpm run verify:config` and
+  `pnpm run boundaries:check`.
+- `domain`, `invariant-core` and `state-machine` stay **pure**: no network, no database, no
+  `process.env`, no framework, no wall-clock, no randomness. Time and randomness are injected.
+- **Applications never copy a business rule.** Rules live in `invariant-core`; an application calls
+  them.
+- A new package must declare `ictt-sentinel.layer` and `mayDependOn`.
 
-Bu ürünün tek satacağı şey **yanlış kesinlik üretmemesidir**. Kod, doküman, log ve UI metninde:
+## 6. Dependencies
 
-**Kullanılmaz:** `proof of reserves`, `solvent`, `guaranteed`, `safe`, `tamper-proof`,
-native bağlamında `exact supply`, `multi-RPC Byzantine proof'tur`.
+- **Exact pins are mandatory.** `^`, `~`, `latest` and `*` are rejected by the gate. The lockfile is
+  committed.
+- A new dependency is a review topic: why it is needed, what the alternative is, its maintenance
+  status, its transitive weight, and its licence.
+- **Install lifecycle scripts are inspected before installation.** `.npmrc` keeps them disabled.
+- Every SDK or dependency upgrade needs an **ADR and tests**
+  ([`docs/PROTOCOL_SOURCE_LOCK.md`](docs/PROTOCOL_SOURCE_LOCK.md) §7).
+- Global installs, `curl | sh`, and remote-code-executing `npx`/`pnpx` are not used.
+- `pnpm run verify:supply-chain` regenerates the SBOM and licence inventory and compares them
+  against the committed artifacts. If your change touches dependencies, run
+  `pnpm run supply-chain:write` and commit the result.
 
-**Kullanılır:** "observed onchain coverage at pinned blocks",
-"reconciled under stated assumptions", "reported native supply upper bound is covered",
-"evidence reproducible from listed RPC/block references".
+Licences must be permissive. Copyleft is accepted only when scoped to a build-time package that
+reaches no shipped artifact, recorded explicitly in `scripts/verify-supply-chain.mjs` with its
+reasoning.
 
-`UNKNOWN` hiçbir yerde `OK`/`healthy`/yeşil olarak gösterilmez.
-Rate anomaly **asla** `undercollateralized` başlığıyla sunulmaz.
+## 7. Database migrations
 
-## 10. Formatting
+- A schema change arrives as its own migration file. An applied migration is **immutable**: if the
+  file changes, the runner raises a drift error rather than repairing the checksum, because the
+  database has already taken the old shape.
+- **The append-only ledger is never broken.** An orphaned record is marked `orphaned`, not deleted,
+  and derived state is rolled back instead.
+- No column carrying a token amount may be `DOUBLE PRECISION` or any other float type.
+- Event identity is at least `(chainKey, blockHash, txHash, logIndex)`.
+- If a migration risks data loss, say so explicitly in the pull request and record it in
+  [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-- Prettier config: `.prettierrc.json`. Markdown `.prettierignore`'dadır — dokümanlardaki
-  tablolar elle hizalanmıştır, prettier onları yeniden akıtmasın.
-- `.editorconfig` LF, UTF-8, 2 boşluk uygular.
+## 8. Architecture decision records
+
+Write an ADR when a decision:
+
+- is expensive to reverse (architecture, truth anchor, trust boundary);
+- changes a security or evidence limit;
+- affects a dependency version, an SDK, or the source lock;
+- will prompt someone to ask "why was it done this way?" later.
+
+File: `docs/adr/NNNN-kebab-title.md`. Sections: **Context → Decision → Reasoning → Consequences
+(accepted benefit and accepted cost) → Alternatives and why they were rejected → Review trigger.**
+
+Add the new ADR to the [`docs/DECISIONS.md`](docs/DECISIONS.md) index. Do not edit an accepted ADR:
+write a new one and mark the old one `Superseded`.
+
+## 9. Commits
+
+- This repository does **not** require conventional commits. A message that is meaningful and
+  describes the change honestly is enough.
+- One logical change per commit.
+- **No automated-tool attribution.** Commit messages, pull requests, tags and release notes must not
+  carry co-author or "generated with" trailers for an AI assistant. This is a standing project rule.
+- Review `git status` before committing. If you see anything that could be a credential, open it and
+  check.
+
+## 10. Language and claim hygiene
+
+The only thing this product has to sell is that **it does not manufacture false certainty.** That
+applies to code, documentation, log lines and UI text alike.
+
+**Never used:** `proof of reserves`, `solvent`, `guaranteed`, `safe`, `tamper-proof`, `exact supply`
+in a native context, or "multi-RPC quorum is a Byzantine proof".
+
+**Used instead:** "observed onchain coverage at pinned blocks", "reconciled under stated
+assumptions", "reported native supply upper bound is covered", "evidence reproducible from the
+listed RPC and block references".
+
+Two rules with no exceptions:
+
+- `UNKNOWN` is never rendered as `OK`, healthy or green, anywhere.
+- A rate or volume anomaly is never presented under a collateral heading.
+
+The console and the alerting layer both assert this mechanically: forbidden phrasing fails a test
+rather than a review.
+
+## 11. Formatting
+
+- Prettier configuration is in `.prettierrc.json`. Markdown is listed in `.prettierignore` because
+  the tables in these documents are hand-aligned and should not be reflowed.
+- `.editorconfig` enforces LF, UTF-8 and two-space indentation.
+- Avoid invisible characters. A narrow no-break space once reached a formatting helper here and was
+  caught only by a test; where a non-obvious character is genuinely needed, write it as an escape.
+
+## 12. How this repository is developed
+
+The history is organised as numbered milestones, each closing with a report in `docs/milestones/`
+that records the exact commands, their exit codes, the acceptance criteria one by one, the decisions
+taken and the risks left open. That structure explains the shape of the repository and is the best
+place to understand why something is the way it is.
+
+You do not need to follow that process to contribute. A focused pull request against `main`, with
+the gates run and the results stated, is exactly right.
+
+## 13. Licence
+
+By contributing, you agree that your contribution is licensed under the
+[Apache License 2.0](LICENSE), the same licence as the project.

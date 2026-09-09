@@ -1,144 +1,170 @@
-# Güvenlik Politikası
+# Security Policy
 
-Bu dosya **açık bildirimi (vulnerability disclosure)** içindir.
-Ürünün tehdit modeli, anahtarsızlık gerekçesi, secret yönetimi ve incident runbook'u için:
-**`docs/SECURITY.md`** (tek kaynak-of-truth).
+This file covers **vulnerability disclosure**.
+
+The threat model, the reasoning behind the keyless architecture, secret handling and the incident
+runbook live in [`docs/SECURITY.md`](docs/SECURITY.md), which is the single source of truth for
+those topics. This file does not repeat them.
 
 ---
 
-## Proje durumu
+## Project status
 
-`ictt-sentinel` şu an **scaffold / technical preview** aşamasındadır. Yayınlanmış bir sürüm,
-dağıtılmış bir paket veya çalışan bir servis **yoktur**. Bu politika şimdiden yürürlüktedir,
-çünkü repository'nin kendisi (config, ayarlar, dokümantasyon) bir saldırı yüzeyidir.
+`ictt-sentinel` is a **technical preview**. There is no tagged release, no published package and no
+hosted service. This policy is in force regardless, because the repository itself — configuration,
+settings, documentation and CI — is an attack surface.
 
-## Desteklenen sürümler
+## Supported versions
 
-| Sürüm | Durum | Güvenlik düzeltmesi |
-|---|---|---|
-| `main` (scaffold, sürümsüz) | Aktif geliştirme | Evet |
-| Yayınlanmış sürüm | **Henüz yok** | — |
+| Version | Status | Security fixes |
+| --- | --- | --- |
+| `main` | Active development | Yes |
+| Tagged release | None yet | — |
 
-İlk etiketlenmiş sürümden itibaren bu tablo güncellenir. Sürüm politikası belirlenene kadar
-yalnız `main` desteklenir.
+This table is updated at the first tagged release. Until a versioning policy is published, only
+`main` is supported.
 
-## Açık bildirimi
+## Reporting a vulnerability
 
-Güvenlik açıklarını **public issue açarak bildirmeyin.**
+**Please do not open a public issue for a security report.**
 
-Bildirimi repository sahibine **özel** kanaldan iletin. Tercih edilen yol GitHub Security
-Advisories'dir (repository yayınlandığında "Report a vulnerability"), aksi halde repository
-sahibiyle doğrudan özel iletişim.
+Use a private channel:
 
-### Bildirim şablonu
+1. **Preferred** — GitHub Security Advisories: *Security → Report a vulnerability* on this
+   repository.
+2. Otherwise, contact the repository owner directly and privately.
+
+Never include live credentials, production RPC URLs or customer data in a report. A redacted
+reproduction is always sufficient; if it is not, say so and we will arrange a channel.
+
+### Report template
 
 ```
-Özet:
-  Tek cümlede sorun.
+Summary:
+  The issue in one sentence.
 
-Etkilenen bileşen:
-  Dosya/paket/ayar yolu ve varsa commit SHA.
+Affected component:
+  File, package or setting path, plus a commit SHA if known.
 
-Sınıf:
-  [ ] Anahtarsızlık ihlali (signer/chain-write yüzeyi)
-  [ ] RPC allowlist bypass / generic passthrough
-  [ ] Secret sızıntısı (log, evidence bundle, hata mesajı, telemetry)
-  [ ] Yanlış hüküm (UNKNOWN'ın OK gösterilmesi / fail-open)
-  [ ] Evidence bütünlüğü (reproducibility kaybı, hash uyuşmazlığı)
-  [ ] Alarm yolu (webhook SSRF, alert payload sızıntısı)
-  [ ] Tedarik zinciri (dependency, lifecycle script, image)
-  [ ] Diğer:
+Class:
+  [ ] Keyless guarantee broken (signer or chain-write surface)
+  [ ] RPC allowlist bypass or generic passthrough
+  [ ] Secret disclosure (log, evidence bundle, error message, telemetry)
+  [ ] Incorrect verdict (UNKNOWN presented as OK, or any fail-open path)
+  [ ] Evidence integrity (reproducibility lost, hash collision or mismatch)
+  [ ] Alerting path (webhook SSRF, payload disclosure)
+  [ ] Supply chain (dependency, lifecycle script, container image)
+  [ ] Other:
 
-Etki:
-  Bir saldırgan bunu kullanarak ne elde eder?
-  Özellikle: yanlış YEŞİL hüküm üretilebiliyor mu?
+Impact:
+  What does an attacker gain?
+  Specifically: can this produce a false GREEN verdict?
 
-Yeniden üretim:
-  Minimal adımlar. Mümkünse pinned block referansları ve manifest/policy hash'i.
+Reproduction:
+  Minimal steps. Where relevant, include pinned block references and the
+  manifest/policy hash rather than live endpoints.
 
-Ortam:
-  Sürüm/commit, Node sürümü, platform.
+Environment:
+  Version or commit, Node version, platform.
 
-Önerilen düzeltme (opsiyonel):
+Suggested fix (optional):
 ```
 
-### Yanıt süreci
+### Response targets
 
-| Adım | Hedef süre |
-|---|---|
-| Alındı teyidi | 3 iş günü |
-| İlk değerlendirme ve sınıflandırma | 10 iş günü |
-| Düzeltme planı veya gerekçeli ret | 30 gün |
-| Koordineli açıklama | Düzeltme sonrası, bildirenle mutabık |
+| Step | Target |
+| --- | --- |
+| Acknowledgement of receipt | 3 business days |
+| Initial assessment and triage | 10 business days |
+| Fix plan, or a reasoned decision not to fix | 30 days |
+| Coordinated disclosure | After the fix, agreed with the reporter |
 
-Bunlar **hedeftir, SLA değildir**; proje henüz üretimde değildir ve ticari destek taahhüdü
-bulunmamaktadır.
+These are **targets, not a service level agreement**. The project is not in production and carries
+no commercial support commitment.
 
-## Kapsam
+## Scope
 
-### Kapsam içi
+### In scope
 
-- Anahtarsızlık garantisinin ihlali: signer, private key, `sendTransaction` veya herhangi bir
-  chain-write yüzeyi
-- RPC query-only allowlist'in atlatılması; generic `request(method, params)` yüzeyi
-- Secret'ın log, evidence bundle, crash report, telemetry veya repository'e sızması
-- **Fail-open davranış:** `UNKNOWN`'ın `OK`/healthy gösterilmesi, desteklenmeyen bir
-  fingerprint'in sessizce geçmesi
-- Evidence bundle'ın yeniden üretilebilirliğinin kırılması veya hash'in çakıştırılabilmesi
-- Alert yolunda SSRF veya payload üzerinden secret sızıntısı
-- `.claude/settings.json` guardrail'lerinin atlatılması
-- Tedarik zinciri: dependency, lifecycle script, image bütünlüğü
+- Any breach of the keyless guarantee: a signer, a private key, `sendTransaction`, or any other
+  chain-write surface.
+- Bypassing the query-only RPC allowlist, or introducing a generic `request(method, params)`
+  surface.
+- A secret reaching a log, an evidence bundle, a crash report, telemetry, a browser bundle or the
+  repository.
+- **Fail-open behaviour**: `UNKNOWN` presented as `OK` or healthy, an unrecognised fingerprint
+  passing silently, or a stale result reported as current.
+- Breaking evidence reproducibility, or producing two different inputs that yield one content hash.
+- SSRF on the alerting path, or secret disclosure through an alert payload.
+- A webhook influencing a fact, a checkpoint or a verdict rather than only collection order.
+- Tenant isolation failure in the hosted API.
+- Supply chain: dependency integrity, install lifecycle scripts, container image provenance.
+- Bypassing the guardrails declared in `.claude/settings.json`.
 
-### Kapsam dışı
+### Out of scope
 
-Bunlar **bilinçli tasarım sınırlarıdır**, açık değildir
-(gerekçe: `docs/SECURITY.md` §7, `docs/adr/0004-icm-assurance-scope.md`):
+The following are **deliberate design limits**, documented and tested as such. They are not
+vulnerabilities (see [`docs/SECURITY.md`](docs/SECURITY.md) §7 and
+[`docs/adr/0004-icm-assurance-scope.md`](docs/adr/0004-icm-assurance-scope.md)):
 
-- Ortak upstream kullanan RPC sağlayıcılarının **birlikte** yanlış cevap vermesi
-- Warp / ICM / validator protokol güvenliğinin kırılması
-- Admin, minter veya proxy upgrade yetkisinin **meşru sahibi** tarafından kötüye kullanılması
-- Ürünün otomatik müdahale etmemesi (auto-pause **kasıtlı olarak yoktur**)
-- Bağımsız BLS aggregate signature / predicate doğrulaması yapılmaması
-  (`INDEPENDENT_ICM_VERIFICATION` = `UNSUPPORTED`)
-- Üçüncü taraf RPC sağlayıcı, Postgres veya Docker'ın kendi açıkları
-- Sosyal mühendislik, fiziksel erişim, DoS
+- RPC providers that share an upstream returning the same wrong answer **together**. Quorum counts
+  independent trust domains; it is not a cryptographic or Byzantine guarantee, and this repository
+  never claims otherwise.
+- A break in Warp, ICM or validator protocol security. This tool observes a protocol; it does not
+  replace its security.
+- Abuse of admin, minter or proxy-upgrade authority by its **legitimate holder**.
+- The absence of automatic intervention. There is **no auto-pause and no circuit breaker**, by
+  design; a scan asserts that no such surface exists anywhere in the repository.
+- The absence of independent BLS aggregate signature or predicate verification
+  (`INDEPENDENT_ICM_VERIFICATION` = `UNSUPPORTED`).
+- Vulnerabilities in third-party RPC providers, PostgreSQL or Docker themselves.
+- Social engineering, physical access, and denial of service.
 
-## Ürünün değişmez güvenlik sözü
+## The invariant security promise
 
-**Bu araç hiçbir koşulda imzalamaz, işlem göndermez, köprü durdurmaz.**
+**This tool does not sign, does not submit transactions, and cannot stop a bridge.**
 
-- Private key, mnemonic, seed, signer, wallet, keystore **tutmaz ve istemez**
-- `sendTransaction` veya herhangi bir chain-write yüzeyi **yoktur**
-- mint / burn / retry / pause / upgrade **çağırmaz**; auto-pause **yoktur**
-- Yazma yapan hiçbir JSON-RPC method'u allowlist'e giremez
+- It never holds or requests a private key, mnemonic, seed, wallet or keystore.
+- There is no `sendTransaction` and no chain-write surface of any kind.
+- It never calls mint, burn, retry, pause or upgrade, and it has no auto-pause.
+- No state-changing JSON-RPC method may be added to the allowlist.
 
-Bu bir yapılandırma tercihi değil, mimari karardır: `docs/adr/0001-keyless-read-only.md`.
-Bir katkı bu sözü ihlal ediyorsa, ne kadar yararlı görünürse görünsün **reddedilir**.
+This is an architectural decision, not a configuration choice:
+[`docs/adr/0001-keyless-read-only.md`](docs/adr/0001-keyless-read-only.md). **A contribution that
+breaks this promise is rejected regardless of how useful it appears.**
 
-Şu env değişkenlerinin varlığı bir **build hatasıdır**, uyarı değil:
+It is enforced mechanically rather than by review alone. `pnpm run boundaries:check` scans the whole
+repository for signing and chain-write surfaces, and `pnpm run lab` reports a forbidden-surface
+counter that must be zero for the release gate to pass.
+
+The presence of these environment variables is a **build error**, not a warning:
 
 ```
 BRIDGE_PRIVATE_KEY   MINTER_PRIVATE_KEY   PAUSER_PRIVATE_KEY   MULTISIG_SIGNER_KEY
 ```
 
-## Project settings bir güvenlik sandbox'ı değildir
+## Repository guardrails are not a sandbox
 
-`.claude/settings.json` içindeki izin kuralları bir **guardrail**dir: kazayı ve dikkatsizliği
-azaltır. **İzolasyon sınırı veya güvenlik sandbox'ı değildir.**
+The permission rules in `.claude/settings.json` are a **guardrail**: they reduce accidents and
+carelessness during AI-assisted development. They are **not an isolation boundary and not a
+security sandbox.**
 
-Bu nedenle:
+Consequently:
 
-- **Production credential'ları Claude sürecine verilmez.** Üretim RPC anahtarları, control-plane
-  token'ları ve müşteri verisi bu repository üzerinde çalışan bir agent oturumuna açılmaz.
-- Geliştirme yalnız testnet/local kimlik bilgileriyle yapılır.
-- Bir deny kuralının varlığı, o dosyanın erişilemez olduğunu **kanıtlamaz**; yalnız normal araç
-  yolundan okunmasını engeller.
-- Gerçek izolasyon gerekiyorsa devcontainer, ayrı kullanıcı hesabı veya ayrı makine kullanılır.
+- **Production credentials are never given to an assistant process.** Production RPC keys,
+  control-plane tokens and customer data are not exposed to an agent session running against this
+  repository.
+- Development uses testnet or local credentials only.
+- The presence of a deny rule does not **prove** a file is unreachable; it prevents reading it
+  through the normal tool path.
+- Where real isolation is required, use a devcontainer, a separate user account or a separate
+  machine.
 
-## Bilinen açık takibi
+## Upstream issue tracking
 
-Bu proje bir üçüncü taraf sözleşme ailesini **gözlemler**. İzlenen dış konular ve duruşumuz
-`docs/PROTOCOL_SOURCE_LOCK.md` §8 ve `docs/SECURITY.md` §8'dedir.
+This project **observes** a third-party contract family. External issues we track, and our position
+on each, are recorded in [`docs/PROTOCOL_SOURCE_LOCK.md`](docs/PROTOCOL_SOURCE_LOCK.md) §8 and
+[`docs/SECURITY.md`](docs/SECURITY.md) §8.
 
-Doğrulanmamış bir dış açık iddiası, bu projede **doğrulanmış production vulnerability olarak
-sunulmaz** ve satış argümanı olarak kullanılmaz.
+An unverified external claim is never presented here as a confirmed production vulnerability, and is
+never used as a sales argument.
