@@ -170,7 +170,7 @@ kodlanmamıştır.
 |---|---|---|---|
 | `Q-01` | **LICENSE seçimi** | `package.json` → `UNLICENSED`; kökte `LICENSE` dosyası **yok** | Açık kaynak mı, kaynak-açık mı, tescilli mi? Kill senaryosunda çıktı "açık kaynak primitive" olabilir (`PRODUCT.md` §11) — bu lisans seçimini doğrudan etkiler. Apache-2.0 patent hükmü, MIT sadeliği ve BUSL ticari koruması farklı sonuçlar doğurur. |
 | `Q-02` | **Node/pnpm pin sapması** | Pin: Node `24.20.0` (LTS), pnpm `11.10.0`. Makinede kurulu: Node `26.0.0` (**LTS değil**), pnpm `11.24.0` | Prompt bu pinleri belirtti; sürüm kendiliğinden değiştirilmez (`CLAUDE.md` §6). Ya `nvm use` ile pine geçilir ya da pin bilinçli olarak güncellenir. |
-| `Q-03` | **Repository görünürlüğü ve GitHub remote'u** | Remote yok; hiç commit yok | Public repository, `SECURITY.md` disclosure kanalını ve `teleporterV2`/#1443 duruşunun görünürlüğünü etkiler. |
+| `Q-03` | **Repository görünürlüğü** | GitHub remote'u `sayweer/ictt-sentinel` olarak yapılandırıldı; görünürlük ve yayınlama sahibi tarafından yönetilir | Public repository, `SECURITY.md` disclosure kanalını ve `teleporterV2`/#1443 duruşunun görünürlüğünü etkiler. |
 | `Q-04` | **Sandbox ağ allowlist'i** | `registry.npmjs.org`, `nodejs.org`, `json.schemastore.org` | Docker image çekme veya ek registry gerekirse liste genişletilmelidir; bu bir güvenlik kararıdır, sessizce yapılmaz. |
 
 ---
