@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Read-only, query-only-allowlist multi-provider RPC witness quorum.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

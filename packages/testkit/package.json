@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Deterministic fixtures and test helpers. Never used by production code paths.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

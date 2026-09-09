@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Manifest and policy schema plus validation. Parses injected input; never reads process.env itself.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

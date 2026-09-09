@@ -14,6 +14,14 @@
 // frozen lockfile, CI actions pinned to immutable commit SHAs, and digest-pinned
 // container base images.
 //
+// The component list comes from the LOCKFILE, not from the installed tree.
+// Native dependencies publish one package per platform, so a macOS machine has
+// `lightningcss-darwin-arm64` where a Linux runner has
+// `lightningcss-linux-x64-gnu`; an inventory built from `node_modules` therefore
+// differs per host and could never be committed and compared. The lockfile names
+// every variant on every machine, which is both deterministic and what an SBOM
+// consumer actually wants.
+//
 // `--write` regenerates the artifacts. Without it the artifacts are regenerated
 // in memory and compared, so a stale committed SBOM fails the gate rather than
 // being quietly refreshed.
@@ -96,6 +104,58 @@ const SCOPED_LICENSES = new Map([
   ['MPL-2.0', new Set(['lightningcss', /^lightningcss-[a-z0-9-]+$/])],
 ]);
 
+/**
+ * Packages that only install on some platforms.
+ *
+ * Their license is never taken from installed metadata, because on any given
+ * host most of them are absent. Two forms:
+ *
+ *   licensedBy  a native binary whose JS wrapper every platform installs. The
+ *               wrapper is published from the same repository under the same
+ *               terms, so the license is READ rather than asserted.
+ *   license     a standalone platform-gated package with no wrapper. The value
+ *               is a reviewed statement, checked against the package's own
+ *               `license` field, with the date it was checked.
+ *
+ * A platform-gated package matching no entry stops the gate rather than being
+ * guessed at. That is not hypothetical: `fsevents` reached this list because a
+ * Linux run failed on it.
+ */
+const PLATFORM_PACKAGES = [
+  { match: /^@rolldown\/binding-/, licensedBy: 'rolldown' },
+  { match: /^lightningcss-/, licensedBy: 'lightningcss' },
+  // macOS-only (`"os": ["darwin"]`), MIT per its own package.json. Read from
+  // node_modules/fsevents/package.json on 2026-09-09.
+  { match: /^fsevents$/, license: 'MIT' },
+];
+
+/** Every `name@version` the lockfile resolves, independent of this host. */
+const lockfileComponents = () => {
+  const lock = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8');
+  const marker = '\npackages:\n';
+  const start = lock.indexOf(marker);
+  if (start === -1) {
+    fail('sbom', 'pnpm-lock.yaml has no packages section');
+    return [];
+  }
+  const after = lock.slice(start + marker.length);
+  const end = after.search(/\n[a-z]+:\n/);
+  const body = end === -1 ? after : after.slice(0, end);
+
+  const components = [];
+  for (const match of body.matchAll(/^ {2}'?([^\s':]+)'?:\s*$/gm)) {
+    const id = match[1];
+    const at = id.lastIndexOf('@');
+    if (at <= 0) {
+      fail('sbom', `lockfile entry "${id}" is not a name@version`);
+      continue;
+    }
+    components.push({ name: id.slice(0, at), version: id.slice(at + 1) });
+  }
+  if (components.length === 0) fail('sbom', 'no components were read from pnpm-lock.yaml');
+  return components;
+};
+
 const scopeAllows = (license, name) => {
   const scope = SCOPED_LICENSES.get(license);
   if (scope === undefined) return false;
@@ -125,30 +185,44 @@ try {
   fail('licenses', 'pnpm licenses list produced no parseable report');
 }
 
-const licenseInventory = [];
+// License per package NAME, from whatever this host installed. Versions are not
+// keyed on: the lockfile decides which versions exist, and two hosts installing
+// the same lockfile install the same versions.
+const licenseByName = new Map();
 for (const [license, packages] of Object.entries(licenses)) {
-  for (const pkg of packages) {
-    if (!ALLOWED_LICENSES.has(license)) {
-      if (!scopeAllows(license, pkg.name)) {
-        fail('licenses', `"${license}" (${pkg.name}) is not on the reviewed allowlist`);
-      } else if (runtimeThirdParty.has(pkg.name)) {
-        // The scope exists because the package is build-time only. If it ever
-        // becomes a runtime dependency the exemption no longer applies.
-        fail(
-          'licenses',
-          `"${license}" (${pkg.name}) is scoped to build time but is now a runtime dependency`,
-        );
-      }
-    }
-    for (const version of pkg.versions ?? []) {
-      licenseInventory.push({
-        name: pkg.name,
-        version,
-        license,
-        scoped: !ALLOWED_LICENSES.has(license),
-      });
+  for (const pkg of packages) licenseByName.set(pkg.name, license);
+}
+
+const licenseFor = (name) => {
+  const entry = PLATFORM_PACKAGES.find((p) => p.match.test(name));
+  if (entry === undefined) return licenseByName.get(name);
+  return entry.license ?? licenseByName.get(entry.licensedBy);
+};
+
+const licenseInventory = [];
+for (const { name, version } of lockfileComponents()) {
+  const license = licenseFor(name);
+  if (license === undefined) {
+    fail(
+      'licenses',
+      `no license resolved for ${name}@${version}; if it is a platform variant, add a native family entry`,
+    );
+    continue;
+  }
+  const scoped = !ALLOWED_LICENSES.has(license);
+  if (scoped) {
+    if (!scopeAllows(license, name)) {
+      fail('licenses', `"${license}" (${name}) is not on the reviewed allowlist`);
+    } else if (runtimeThirdParty.has(name)) {
+      // The scope exists because the package is build-time only. If it ever
+      // becomes a runtime dependency the exemption no longer applies.
+      fail(
+        'licenses',
+        `"${license}" (${name}) is scoped to build time but is now a runtime dependency`,
+      );
     }
   }
+  licenseInventory.push({ name, version, license, scoped });
 }
 licenseInventory.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
 
@@ -170,7 +244,7 @@ const sbom = {
       name: 'ictt-sentinel',
       version: rootPkg.version,
       description: rootPkg.description,
-      licenses: [{ license: { id: 'UNLICENSED' } }],
+      licenses: [{ license: { id: 'Apache-2.0' } }],
     },
     tools: [{ name: 'scripts/verify-supply-chain.mjs', vendor: 'ictt-sentinel' }],
   },
@@ -313,7 +387,7 @@ if (WRITE) {
 }
 
 // --- report ----------------------------------------------------------------
-console.log(`note   ${String(licenseInventory.length)} resolved package version(s)`);
+console.log(`note   ${String(licenseInventory.length)} lockfile-resolved package version(s)`);
 console.log(`note   licenses: ${Object.keys(licenses).sort().join(', ')}`);
 console.log(
   `note   advisories: critical=${String(vulns.critical ?? 0)} high=${String(vulns.high ?? 0)} moderate=${String(vulns.moderate ?? 0)} low=${String(vulns.low ?? 0)}`,

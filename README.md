@@ -391,9 +391,18 @@ pilot context. Until that evidence exists, the honest release label remains
 
 ## License
 
-No open-source license has been selected yet. The repository is currently marked `UNLICENSED`, so
-source visibility does not grant reuse or redistribution rights. An explicit license choice by the
-project owner is required before presenting the project as open source or accepting broad reuse.
+[Apache License 2.0](LICENSE). The full text is the canonical Apache text, byte for byte
+(`sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`); attribution and
+third-party notices are in [NOTICE](NOTICE).
+
+Apache-2.0 was chosen over MIT for its **express patent grant and patent-retaliation clause**,
+which matter for a tool that reads protocol semantics, and over a copyleft licence because a
+shadow pilot runs inside an operator's own network: a reciprocal licence would deter exactly the
+operators this product needs. The licence grants no rights to the `ictt-sentinel` name.
+
+Third-party dependency licences are inventoried in `artifacts/licenses.json` and enforced by
+`pnpm run verify:supply-chain`: permissive only, with one reviewed, build-time-scoped exception
+(MPL-2.0, `lightningcss`, Vite's CSS transformer, which reaches no shipped artifact).
 
 ## Acknowledgements
 

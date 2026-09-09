@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Deterministic invariant rules. Pure: no I/O, env, clock or randomness.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

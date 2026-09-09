@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Optional read-only evidence UI.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

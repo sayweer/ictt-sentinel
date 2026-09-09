@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Keyless, read-only assurance and reproducible evidence for Avalanche ICM/ICTT deployments.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "homepage": "https://github.com/sayweer/ictt-sentinel#readme",
   "repository": {
     "type": "git",
