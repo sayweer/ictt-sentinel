@@ -151,6 +151,15 @@ jobs:
         env:
           ICTT_SENTINEL_TEST_DATABASE_URL: postgres://ictt_admin:ci-local-only@127.0.0.1:5432/ictt_sentinel_test
 
+      # Exercise the artifact that ships in a real browser. Playwright is a
+      # pinned workspace dependency; only its matching Chromium build and
+      # required Ubuntu libraries are installed here.
+      - name: Install Playwright Chromium
+        run: pnpm --filter @ictt-sentinel/console exec playwright install --with-deps chromium
+
+      - name: browser E2E
+        run: pnpm run test:e2e
+
       # The deterministic fault lab, run again on its own so its five release
       # counters name themselves in the job log rather than being one line
       # inside a 1200-test run.
@@ -159,6 +168,9 @@ jobs:
 
       - name: build
         run: pnpm run build
+
+      - name: reproducible build
+        run: pnpm run verify:reproducible-build
 
       - name: Assert the working tree is clean after the build
         run: git status --porcelain --untracked-files=no | tee /dev/stderr | wc -l | grep -qx 0
