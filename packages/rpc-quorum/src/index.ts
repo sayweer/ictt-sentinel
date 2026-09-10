@@ -76,6 +76,17 @@ export {
 } from './quorum.js';
 
 export {
+  CONCLUSIVE_SIGNALS,
+  correlateEndpoints,
+  independenceGroups,
+  type CorrelationFinding,
+  type CorrelationResult,
+  type CorrelationSignal,
+  type EndpointCorrelationInput,
+  type IndependenceClaim,
+} from './independence.js';
+
+export {
   ACCEPTED_STATE_EVIDENCE,
   buildPinnedContext,
   decideFinalityBasis,

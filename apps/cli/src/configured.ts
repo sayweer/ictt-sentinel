@@ -212,10 +212,16 @@ export const runAsync = async (
     }
     if (args.command === 'discover' && args.file === null) {
       if (offline || !pins) throw new InputError();
-      const result = await discoverConfigured(manifest, policy.value, pins, runtime, signal, root, {
-        maxFacts: args.maxFacts,
-        resume: args.resume,
-      });
+      const result = await discoverConfigured(
+        manifest,
+        policy.value,
+        pins,
+        options.env,
+        runtime,
+        signal,
+        root,
+        { maxFacts: args.maxFacts, resume: args.resume },
+      );
       output('discover', result);
       return EXIT.requiredUnknown;
     }

@@ -1,3 +1,4 @@
+import { Resolver, lookup } from 'node:dns/promises';
 import { readFileSync, statSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
@@ -5,6 +6,7 @@ import {
   buildRequest,
   checkEndpointUrl,
   DEFAULT_TRANSPORT_POLICY,
+  independenceGroups,
   jsonDepth,
   type ReadOperation,
 } from '@ictt-sentinel/rpc-quorum';
@@ -63,10 +65,21 @@ export const decodePins = (value: unknown): readonly Pin[] => {
   return pins;
 };
 
+/** What a hostname actually points at. Empty lists mean "could not tell". */
+export interface HostResolution {
+  readonly addresses: readonly string[];
+  readonly cnames: readonly string[];
+}
+
 export interface Runtime {
   read(endpoint: Endpoint, operation: ReadOperation, signal: AbortSignal): Promise<unknown>;
   database(signal: AbortSignal): Promise<boolean>;
   now(): number;
+  /**
+   * Optional: DNS is a diagnostic here, not part of any verdict, so a runtime
+   * that cannot resolve simply reports less rather than failing.
+   */
+  resolveHost?(hostname: string, signal: AbortSignal): Promise<HostResolution>;
 }
 
 /** No generic RPC passthrough. Transport failures never carry endpoint values. */
@@ -137,6 +150,41 @@ export const createRuntime = (
       }
       throw new ReadFailure('RPC unavailable.');
     },
+    resolveHost: async (hostname, signal) => {
+      signal.throwIfAborted();
+      const resolver = new Resolver({ timeout, tries: 1 });
+      // Failure is an answer here: an unresolvable host yields no signal rather
+      // than an error, because doctor must still report everything else.
+      const bounded = async <T>(work: () => Promise<readonly T[]>): Promise<readonly T[]> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            work(),
+            new Promise<readonly T[]>((settle) => {
+              timer = setTimeout(() => {
+                resolver.cancel();
+                settle([]);
+              }, timeout);
+            }),
+          ]);
+        } catch {
+          return [];
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+      // The OS resolver for addresses, because that is the path fetch takes;
+      // a direct query for CNAMEs, because getaddrinfo does not report them.
+      const [addresses, cnames] = await Promise.all([
+        bounded(() => lookup(hostname, { all: true })),
+        bounded(() => resolver.resolveCname(hostname)),
+      ]);
+      signal.throwIfAborted();
+      return {
+        addresses: addresses.map((entry) => entry.address).sort((a, b) => a.localeCompare(b)),
+        cnames: [...cnames].sort((a, b) => a.localeCompare(b)),
+      };
+    },
     database: async (signal) => {
       const dsn = env['DATABASE_URL'];
       if (!dsn) return false;
@@ -178,19 +226,4 @@ export const createRuntime = (
 /** Transitive shared domain OR provider means one failure domain. */
 export const independentCount = (
   endpoints: readonly Pick<Endpoint, 'trustDomain' | 'providerGroup'>[],
-): number => {
-  const groups: { domains: Set<string>; providers: Set<string> }[] = [];
-  for (const ep of endpoints) {
-    const joined = groups.filter(
-      (g) => g.domains.has(ep.trustDomain) || g.providers.has(ep.providerGroup),
-    );
-    const merged = { domains: new Set([ep.trustDomain]), providers: new Set([ep.providerGroup]) };
-    for (const g of joined) {
-      for (const d of g.domains) merged.domains.add(d);
-      for (const p of g.providers) merged.providers.add(p);
-      groups.splice(groups.indexOf(g), 1);
-    }
-    groups.push(merged);
-  }
-  return groups.length;
-};
+): number => independenceGroups(endpoints).length;

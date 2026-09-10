@@ -1,3 +1,4 @@
+import { independenceGroups } from './independence.js';
 import { RpcIntegrityConflict } from './errors.js';
 
 /**
@@ -103,35 +104,8 @@ const independentWitnesses = (
       `${b.trustDomain}\0${b.providerGroup}\0${b.endpointId}`,
     ),
   );
-  const components: {
-    domains: Set<string>;
-    providers: Set<string>;
-    observations: WitnessObservation[];
-  }[] = [];
-  for (const observation of ordered) {
-    const joined = components.filter(
-      (component) =>
-        component.domains.has(observation.trustDomain) ||
-        component.providers.has(observation.providerGroup),
-    );
-    const merged = {
-      domains: new Set([observation.trustDomain]),
-      providers: new Set([observation.providerGroup]),
-      observations: [observation],
-    };
-    for (const component of joined) {
-      for (const domain of component.domains) merged.domains.add(domain);
-      for (const provider of component.providers) merged.providers.add(provider);
-      merged.observations.push(...component.observations);
-      components.splice(components.indexOf(component), 1);
-    }
-    components.push(merged);
-  }
-  return components
-    .map(
-      (component) =>
-        component.observations.sort((a, b) => a.endpointId.localeCompare(b.endpointId))[0],
-    )
+  return independenceGroups(ordered)
+    .map((group) => [...group].sort((a, b) => a.endpointId.localeCompare(b.endpointId))[0])
     .filter((observation): observation is WitnessObservation => observation !== undefined)
     .sort((a, b) => a.endpointId.localeCompare(b.endpointId));
 };

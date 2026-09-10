@@ -13,12 +13,11 @@ import {
   hexQuantity,
   object,
   readDocument,
-  independentCount,
   InputError,
   type Pin,
   type Runtime,
 } from './runtime.js';
-import { probeDeployment, deployments } from './doctor.js';
+import { correlatedIndependence, probeDeployment, deployments } from './doctor.js';
 import type { ReplayCursor } from './offline-replay.js';
 import { EXIT } from './exit-codes.js';
 
@@ -76,6 +75,7 @@ export const discoverConfigured = async (
   loaded: LoadedDocument<Manifest>,
   policy: Policy,
   pins: readonly Pin[],
+  env: Readonly<Record<string, string | undefined>>,
   runtime: Runtime,
   signal: AbortSignal,
   root: string,
@@ -196,14 +196,24 @@ export const discoverConfigured = async (
       home.chain.quorum.independentTrustDomains,
       policy.spec.quorum.minIndependentTrustDomains,
     );
+    const correlation = await correlatedIndependence(
+      m.metadata.name,
+      home.chain.endpoints,
+      witnesses.map((w) => w.endpoint),
+      env,
+      runtime,
+      signal,
+    );
     if (
-      independentCount(witnesses.map((w) => w.endpoint)) < required ||
+      correlation.independent < required ||
       new Set(witnesses.map((w) => canonicalStringify(w.logs))).size !== 1
     )
       return {
         complete: false,
         checkpointAdvanced: false,
-        missing: ['independent-registration-quorum-or-log-bound'],
+        missing: correlation.collapsed
+          ? ['independent-registration-quorum-or-log-bound', 'endpoint-independence-collapsed']
+          : ['independent-registration-quorum-or-log-bound'],
         exitCode: EXIT.requiredUnknown,
       };
     registrations.push(...(witnesses[0]?.logs ?? []));

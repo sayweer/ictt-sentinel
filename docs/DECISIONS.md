@@ -15,6 +15,12 @@ bağlayıcı olan kararları kaydeder.
 | [0002](adr/0002-accepted-quorum-truth.md) | Accepted-state + provider quorum truth path | Kabul (**tarihli sona erme**) | Pinned-block + çok-witness; webhook fact yazamaz; ACP-194 tetikleyicisi |
 | [0003](adr/0003-fail-closed-verdicts.md) | Fail-closed hükümler, UNKNOWN birinci sınıf | Kabul | `CRITICAL > required UNKNOWN > WARN > OK`; UNKNOWN asla yeşil |
 | [0004](adr/0004-icm-assurance-scope.md) | ICM assurance kapsamı | Kabul (V0) | `ACCEPTED_STATE_ASSURANCE`; bağımsız BLS/predicate doğrulaması **iddia edilmez** |
+| [0005](adr/0005-toolchain.md) | Toolchain seçimi ve exact sürüm kilidi | Kabul | Pinli Node/pnpm/TypeScript; `^`/`~`/`latest` yasak, lockfile commit edilir |
+| [0006](adr/0006-protocol-and-sdk-source-lock.md) | Protokol kaynak kilidi, ABI/fingerprint ve SDK sınırı | Kabul | Immutable commit SHA; runtime bytecode hash türetilemiyor, operatör attestation'ına bağlı |
+| [0007](adr/0007-cli-evidence-exit-codes.md) | Evidence doğrulama ve CLI exit code'ları | Kabul (M11 offline yüzeyi) | Bütünlük ile protokol sağlığı ayrı; doğrulanmış CRITICAL exit 0'a dönüşmez |
+| [0008](adr/0008-hosted-api-stack.md) | Hosted evidence API stack | Kabul | Fastify; repository'deki en büyük trust-boundary genişlemesi olarak kayıtlı |
+| [0009](adr/0009-console-stack.md) | Operatör konsolu stack'i | Kabul | React + Vite + Playwright, exact pin; salt-okunur konsol |
+| [0010](adr/0010-evidence-attestation.md) | Evidence provenance ve opsiyonel attestation | Kabul (yalnız karar) | Ürün imzalamaz; build provenance CI'da, run attestation ayrık DSSE zarfı olarak yalnız doğrulanır |
 
 ---
 

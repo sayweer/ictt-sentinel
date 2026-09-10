@@ -23,7 +23,7 @@
 
 ## What is ictt-sentinel?
 
-`ictt-sentinel` is a source-available technical-preview assurance toolkit for
+`ictt-sentinel` is an open-source technical-preview assurance toolkit for
 [Avalanche Interchain Token Transfer (ICTT)](https://build.avax.network/docs/cross-chain/interchain-token-transfer/overview)
 deployments. It helps an operator answer four questions:
 

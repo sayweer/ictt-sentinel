@@ -11,7 +11,11 @@ import {
   type Endpoint,
 } from '@ictt-sentinel/config';
 import { domainSeparatedSha256, endpointPseudonym } from '@ictt-sentinel/evidence';
-import type { ReadOperation } from '@ictt-sentinel/rpc-quorum';
+import {
+  correlateEndpoints,
+  type EndpointCorrelationInput,
+  type ReadOperation,
+} from '@ictt-sentinel/rpc-quorum';
 import {
   bytes32,
   hexQuantity,
@@ -31,6 +35,93 @@ export const witnessId = (deploymentId: string, endpointId: string): string =>
     deploymentId,
     endpointId,
   );
+const EMPTY_HOST = { addresses: [] as readonly string[], cnames: [] as readonly string[] };
+
+/** The host an endpoint actually points at, or null when it cannot be told. */
+const hostnameOf = (
+  endpoint: Endpoint,
+  env: Readonly<Record<string, string | undefined>>,
+): string | null => {
+  const raw = env[endpoint.secretRef];
+  if (raw === undefined) return null;
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A conclusive correlation means one witness wearing two names, so the pair is
+ * given one trust domain and the existing count collapses it. Nothing about the
+ * counting rule changes; only the input is corrected.
+ */
+const collapseMerged = (
+  endpoints: readonly Endpoint[],
+  identify: (endpoint: Endpoint) => string,
+  merges: readonly (readonly [string, string])[],
+): readonly Pick<Endpoint, 'trustDomain' | 'providerGroup'>[] => {
+  const domains = new Map(endpoints.map((e) => [identify(e), e.trustDomain]));
+  for (const [left, right] of merges) {
+    const a = domains.get(left);
+    const b = domains.get(right);
+    if (a === undefined || b === undefined) continue;
+    const winner = a < b ? a : b;
+    for (const [id, domain] of domains) if (domain === a || domain === b) domains.set(id, winner);
+  }
+  return endpoints.map((e) => ({
+    trustDomain: domains.get(identify(e)) ?? e.trustDomain,
+    providerGroup: e.providerGroup,
+  }));
+};
+
+/**
+ * Independent witness count, corrected by what the endpoints actually point at.
+ *
+ * `declared` is every endpoint the manifest lists for the chain, because a
+ * misconfiguration is worth reporting even when that endpoint failed its probe.
+ * `counted` is the subset that may back a quorum, and is the only list the
+ * returned count is computed over.
+ */
+export const correlatedIndependence = async (
+  deploymentId: string,
+  declared: readonly Endpoint[],
+  counted: readonly Endpoint[],
+  env: Readonly<Record<string, string | undefined>>,
+  runtime: Runtime,
+  signal: AbortSignal,
+) => {
+  const identify = (endpoint: Endpoint) => witnessId(deploymentId, endpoint.id);
+  const resolutions = new Map<string, typeof EMPTY_HOST>();
+  const inputs: EndpointCorrelationInput[] = [];
+  for (const endpoint of declared) {
+    signal.throwIfAborted();
+    const hostname = hostnameOf(endpoint, env);
+    if (hostname !== null && !resolutions.has(hostname))
+      resolutions.set(hostname, (await runtime.resolveHost?.(hostname, signal)) ?? EMPTY_HOST);
+    const resolved = hostname === null ? EMPTY_HOST : (resolutions.get(hostname) ?? EMPTY_HOST);
+    inputs.push({
+      endpointId: identify(endpoint),
+      trustDomain: endpoint.trustDomain,
+      secretRef: endpoint.secretRef,
+      hostname,
+      addresses: resolved.addresses,
+      cnames: resolved.cnames,
+    });
+  }
+  const { findings, merges } = correlateEndpoints(inputs, (input) =>
+    domainSeparatedSha256('ictt-sentinel/correlation/v1', input),
+  );
+  return {
+    findings,
+    // Whether DNS answered at all, so an empty finding list is not read as
+    // "checked and clean" when nothing could be resolved.
+    resolved: inputs.some((i) => i.addresses.length > 0 || i.cnames.length > 0),
+    collapsed: merges.length > 0,
+    independent: independentCount(collapseMerged(counted, identify, merges)),
+  };
+};
+
 const slotAddress = (value: unknown): string | null => {
   const word = bytes32(value);
   if (!/^0x0{24}/.test(word)) throw new Error('Non-address slot.');
@@ -214,7 +305,15 @@ export const doctorConfigured = async (
     const successful = witnesses.filter(
       (w) => w.probe?.identity && w.probe.finality && w.probe.fingerprint,
     );
-    const independent = independentCount(successful.map((w) => w.endpoint));
+    const correlation = await correlatedIndependence(
+      manifest.metadata.name,
+      deployment.chain.endpoints,
+      successful.map((w) => w.endpoint),
+      env,
+      runtime,
+      signal,
+    );
+    const independent = correlation.independent;
     const divergence = witnesses.some(
       (w) => w.probe !== null && w.probe.blockHash !== pin.blockHash,
     );
@@ -226,6 +325,7 @@ export const doctorConfigured = async (
       independent,
       divergence,
       archive,
+      correlation: { resolved: correlation.resolved, findings: correlation.findings },
       ready: independent >= required && !divergence && archive,
       witnesses: witnesses.map(({ endpointId, probe }) => ({ endpointId, probe })),
     });
@@ -238,6 +338,6 @@ export const doctorConfigured = async (
     telemetry: false,
     ready: presence.every((p) => p.present) && chains.every((c) => c.ready) && database,
     trustBoundary:
-      'Provider identity, independence and accepted-only settings include operator attestations; successful probes do not prove provider honesty. Archive probe tests the deployment block, not continuous history.',
+      'Provider identity, independence and accepted-only settings include operator attestations; successful probes do not prove provider honesty. Archive probe tests the deployment block, not continuous history. Endpoint correlation is a misconfiguration check, not a proof of independence: a shared address or CNAME is a heuristic hint, and an empty finding list proves nothing.',
   };
 };

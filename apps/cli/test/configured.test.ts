@@ -325,6 +325,43 @@ describe('doctor and registration RPC orchestration', () => {
     delete f.env['DATABASE_URL'];
     expect((await f.invoke(['doctor', '--pins', f.paths.pins])).code).toBe(5);
   });
+  it('collapses two declared trust domains that point at one host', async () => {
+    const f = setup();
+    const home = deployments(f.manifest.value)[0]!;
+    const [first, second] = home.chain.endpoints;
+    f.env[first!.secretRef] = 'https://rpc.shared.test/first';
+    f.env[second!.secretRef] = 'https://rpc.shared.test/second';
+    const r = await f.invoke(['doctor', '--pins', f.paths.pins]);
+    expect(r.code).toBe(3);
+    expect(r.result['ready']).toBe(false);
+    const chains = r.result['chains'] as {
+      independent: number;
+      correlation: { resolved: boolean; findings: Record<string, unknown>[] };
+    }[];
+    expect(chains[0]?.independent).toBe(1);
+    expect(chains[0]?.correlation.findings[0]).toMatchObject({
+      signal: 'same-hostname',
+      conclusive: true,
+    });
+    // The declared domains are named, the infrastructure never is. Pair order
+    // follows the pseudonymous endpoint id, so compare it as a set.
+    expect((chains[0]?.correlation.findings[0]?.['trustDomains'] as string[]).toSorted()).toEqual([
+      'provider-alpha',
+      'provider-beta',
+    ]);
+    expect(r.stdout).not.toContain('rpc.shared.test');
+  });
+  it('refuses a registration quorum whose endpoints point at one host', async () => {
+    const f = setup();
+    const home = deployments(f.manifest.value)[0]!;
+    const [first, second] = home.chain.endpoints;
+    f.env[first!.secretRef] = 'https://rpc.shared.test/first';
+    f.env[second!.secretRef] = 'https://rpc.shared.test/second';
+    const r = await f.invoke(['discover', '--pins', f.paths.pins]);
+    expect(r.code).toBe(3);
+    expect(r.result['missing']).toContain('endpoint-independence-collapsed');
+    expect(r.stdout).not.toContain('rpc.shared.test');
+  });
   it('counts shared upstream transitively', () => {
     expect(
       independentCount([
