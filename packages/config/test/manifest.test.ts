@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigError } from '../src/errors.js';
-import { collectSecretRefs, loadManifest, loadPolicy } from '../src/load.js';
+import {
+  assertManifestMeetsPolicy,
+  collectSecretRefs,
+  loadManifest,
+  loadPolicy,
+} from '../src/load.js';
 import { exactReplayCapability, isApproved } from '../src/baseline.js';
 import { VALID_MANIFEST, VALID_POLICY, mutate } from './fixtures.js';
 
@@ -222,6 +227,38 @@ describe('quorum cannot be faked', () => {
       '            trustDomain: operator-self-hosted\n            providerGroup: operator-node-b\n            role: secondary',
     );
     expect(codesFor(collapsed)).toContain('FAKE_QUORUM');
+  });
+});
+
+describe('one endpoint listed twice', () => {
+  it('rejects a secretRef shared by two endpoints on one chain, whatever they claim', () => {
+    const bad = mutate(
+      VALID_MANIFEST,
+      'secretRef: ICTT_SENTINEL_HOME_RPC_SECONDARY',
+      'secretRef: ICTT_SENTINEL_HOME_RPC_PRIMARY',
+    );
+    expect(codesFor(bad)).toContain('DUPLICATE_ENDPOINT');
+  });
+});
+
+describe('manifest against policy', () => {
+  it('accepts the example manifest under the default policy', () => {
+    expect(() => {
+      assertManifestMeetsPolicy(loadManifest(VALID_MANIFEST).value, loadPolicy(VALID_POLICY).value);
+    }).not.toThrow();
+  });
+
+  it('refuses a policy that asks for more independent trust domains than a chain has', () => {
+    const policy = loadPolicy(
+      mutate(VALID_POLICY, 'minIndependentTrustDomains: 2', 'minIndependentTrustDomains: 4'),
+    ).value;
+    let codes: string[] = [];
+    try {
+      assertManifestMeetsPolicy(loadManifest(VALID_MANIFEST).value, policy);
+    } catch (e) {
+      if (e instanceof ConfigError) codes = e.issues.map((i) => i.code);
+    }
+    expect(codes).toContain('FAKE_QUORUM');
   });
 });
 

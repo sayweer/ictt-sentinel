@@ -90,6 +90,7 @@ const checkManifestInvariants = (m: Manifest): readonly ConfigIssue[] => {
     }
 
     const ids = new Set<string>();
+    const secretRefs = new Set<string>();
     const domains = new Set<string>();
     for (const [i, ep] of chain.endpoints.entries()) {
       const epPath = `${path}.endpoints[${String(i)}]`;
@@ -98,7 +99,19 @@ const checkManifestInvariants = (m: Manifest): readonly ConfigIssue[] => {
           issue('DUPLICATE_ENDPOINT', epPath, `endpoint id "${ep.id}" is used more than once`),
         );
       }
+      // One variable is one URL. Two entries reading it are one endpoint listed
+      // twice, whatever trustDomain each claims, so it can never be two witnesses.
+      if (secretRefs.has(ep.secretRef)) {
+        issues.push(
+          issue(
+            'DUPLICATE_ENDPOINT',
+            `${epPath}.secretRef`,
+            `secretRef "${ep.secretRef}" is used by more than one endpoint on this chain`,
+          ),
+        );
+      }
       ids.add(ep.id);
+      secretRefs.add(ep.secretRef);
       domains.add(ep.trustDomain);
     }
 
@@ -211,6 +224,31 @@ export const loadManifest = (source: string, limits?: SafeYamlLimits): LoadedDoc
 
 export const loadPolicy = (source: string, limits?: SafeYamlLimits): LoadedDocument<Policy> =>
   loadDocument(source, SUPPORTED_POLICY_API_VERSIONS, 'SentinelPolicy', zPolicy, () => [], limits);
+
+/**
+ * A manifest and a policy are reviewed apart, so neither load can see that a
+ * policy demands more independent trust domains than a chain declares. Checked
+ * where the two meet, so the mismatch is a configuration error at load time
+ * instead of a quorum that can never form at run time.
+ */
+export const assertManifestMeetsPolicy = (m: Manifest, policy: Policy): void => {
+  const required = policy.spec.quorum.minIndependentTrustDomains;
+  const chains = [
+    { path: 'spec.home.chain', chain: m.spec.home.chain },
+    ...m.spec.remotes.map((r, i) => ({ path: `spec.remotes[${String(i)}].chain`, chain: r.chain })),
+  ];
+  const issues = chains
+    .filter(({ chain }) => new Set(chain.endpoints.map((e) => e.trustDomain)).size < required)
+    .map(({ path, chain }) =>
+      issue(
+        'FAKE_QUORUM',
+        `${path}.endpoints`,
+        `policy requires ${String(required)} independent trust domains but only ` +
+          `${String(new Set(chain.endpoints.map((e) => e.trustDomain)).size)} are configured`,
+      ),
+    );
+  if (issues.length > 0) throw new ConfigError(issues);
+};
 
 /** Every secret the manifest references, in document order, de-duplicated. */
 export const collectSecretRefs = (m: Manifest): readonly SecretRef[] => {

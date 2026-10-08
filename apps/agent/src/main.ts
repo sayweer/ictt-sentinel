@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { loadManifest, loadPolicy, type EnvSource } from '@ictt-sentinel/config';
+import {
+  assertManifestMeetsPolicy,
+  loadManifest,
+  loadPolicy,
+  type EnvSource,
+} from '@ictt-sentinel/config';
 import { createDb } from '@ictt-sentinel/storage-postgres';
 import { loadAgentConfig } from './config.js';
 import { createAgentService, type AgentService } from './daemon.js';
@@ -64,6 +69,7 @@ export const startAgent = async (env: EnvSource): Promise<AgentProcess> => {
   const config = loadAgentConfig(env);
   const manifest = loadManifest(readConfig(config.manifestPath)).value;
   const policy = loadPolicy(readConfig(config.policyPath)).value;
+  assertManifestMeetsPolicy(manifest, policy);
   const db = createDb(config.databaseUrl, {
     max: config.maxConcurrency + 2,
     statementTimeoutSeconds: Math.max(1, Math.ceil(config.jobTimeoutMs / 1000)),

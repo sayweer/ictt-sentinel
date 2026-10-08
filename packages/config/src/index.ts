@@ -48,7 +48,13 @@ export {
   type PolicySpec,
 } from './schema/policy.js';
 
-export { collectSecretRefs, loadManifest, loadPolicy, type LoadedDocument } from './load.js';
+export {
+  assertManifestMeetsPolicy,
+  collectSecretRefs,
+  loadManifest,
+  loadPolicy,
+  type LoadedDocument,
+} from './load.js';
 
 export {
   approveCandidate,

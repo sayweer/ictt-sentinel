@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import {
+  assertManifestMeetsPolicy,
   ConfigError,
   loadManifest,
   loadPolicy,
@@ -168,6 +169,7 @@ export const runAsync = async (
     if (!manifestPath || !policyPath) throw new InputError();
     const manifest = loadManifest(readDocument(manifestPath)),
       policy = loadPolicy(readDocument(policyPath));
+    assertManifestMeetsPolicy(manifest.value, policy.value);
     const pinsFile = values.get('--pins');
     const pins = pinsFile === undefined ? null : decodePins(JSON.parse(readDocument(pinsFile)));
     const root = resolve(args.evidenceDir ?? options.evidenceDir);

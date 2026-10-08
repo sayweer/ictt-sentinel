@@ -364,6 +364,22 @@ describe('doctor and registration RPC orchestration', () => {
     expect(migrated.stdout).toContain('settled-quorum');
     expect(migrated.stdout).not.toContain('superseded-by-acp-194');
   });
+  it('refuses a policy whose quorum the manifest cannot form, before reading anything', async () => {
+    const f = setup();
+    const strict = loadPolicy(readFileSync(f.paths.policy, 'utf8')).value;
+    strict.spec.quorum.minIndependentTrustDomains = 3;
+    writeFileSync(f.paths.policy, JSON.stringify(strict));
+    let reads = 0;
+    const r = await f.invoke(['doctor', '--pins', f.paths.pins], {
+      ...f.runtime,
+      read: (ep, op, signal) => {
+        reads += 1;
+        return f.runtime.read(ep, op, signal);
+      },
+    });
+    expect(r.code).toBe(5);
+    expect(reads).toBe(0);
+  });
   it('refuses evidence pinned under a different finality semantic than the manifest', async () => {
     const f = setup();
     const settled = structuredClone(f.manifest.value);
