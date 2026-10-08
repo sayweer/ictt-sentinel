@@ -252,3 +252,4 @@ Ayrıca kontrol edilir: initial reserve collateral, minter allowlist/münhasırl
 - **ACP-194 tetikleyicisi:** "Continuous Execution" aktive olursa `Accepted -> Executed -> Settled`
   ayrışır ve kabul edilmiş blokta okunan state yürütülmüş state'i yansıtmaz. O noktada truth anchor
   `settled` bloğa taşınmak zorundadır. Bkz. `docs/adr/0002-accepted-quorum-truth.md`.
+  **2026-10-09: tetiklendi;** C-Chain için `settled-quorum` uygulandı (ADR-0011, ADR-0013).

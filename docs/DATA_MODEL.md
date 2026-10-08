@@ -141,8 +141,9 @@ sonrası `settled-quorum`), `chain.quorum.independentTrustDomains` bağımsız w
 `chain.finality.maxLagSeconds` tazeliği taşır. Şema `confirmations` alanını **reddeder**
 (bilinmeyen alan hatası), sessizce yok saymaz — bu davranış testle doğrulanmıştır.
 
-`settled-quorum` şemada tanımlıdır fakat **seçilmesi reddedilir**: ACP-194 henüz aktif değil
-ve onu bugünün semantiği gibi sessizce işlemek yanlış olurdu.
+`settled-quorum` **kabul edilir** (2026-10-09, ADR-0013): settled bloğa (`finalized` tag) anchor
+eder ve `latest` okumadığı için `acceptedStateQueries: accepted-only` beyanı istemez. ACP-194
+sonrası C-Chain'de hüküm taşıyabilen tek moddur; orada `accepted-quorum` `UNKNOWN` verir (ADR-0011).
 
 ### 3.2 Messaging kaynak ailesi
 

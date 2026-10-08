@@ -1,6 +1,7 @@
 # ADR-0011 — ACP-194 is active: accepted-state truth is superseded on the C-Chain
 
-- **Status:** `ACCEPTED` — partially supersedes ADR-0002 (C-Chain mainnet and Fuji only)
+- **Status:** `ACCEPTED` — partially supersedes ADR-0002 (C-Chain mainnet and Fuji only).
+  The remaining migration was completed by ADR-0013 (`settled-quorum`, 2026-10-09).
 - **Date:** 2026-10-09
 - **Milestone:** 16
 - **Related:** ADR-0002 (accepted-quorum truth, its expiry condition), ADR-0003 (fail-closed

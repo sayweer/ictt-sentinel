@@ -88,6 +88,8 @@ Bkz. `docs/adr/0002-accepted-quorum-truth.md`.
 - C-Chain block hash'i local geth alanlarından **yeniden hesaplanmaz**; node'un verdiği hash esastır.
 - **ACP-194 tetikleyicisi:** Helicon aktive olursa kabul ≠ yürütme olur ve truth anchor `settled`
   bloğa kaymak zorundadır. Bu, her milestone'da yeniden kontrol edilir.
+  **2026-10-09: tetiklendi** — Helicon Mainnet 2026-09-22, Fuji 2026-07-28. C-Chain için anchor
+  `settled-quorum` (`finalized` tag); `accepted-quorum` orada `UNKNOWN`. Bkz. ADR-0011, ADR-0013.
 
 ## 5. Mesaj yaşam döngüsü
 

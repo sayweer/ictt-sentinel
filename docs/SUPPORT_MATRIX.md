@@ -73,6 +73,7 @@ observation'larını bu girdiye dönüştürmesi henüz bağlı değildir.
 | Yetenek | Statü | Not |
 |---|---|---|
 | `ACCEPTED_STATE_ASSURANCE` (V0 varsayılanı) | `IMPLEMENTED` | Provider quorum ile kabul edilmiş durum; provider honesty kanıtı değildir |
+| `settled-quorum` finality (`finalized` tag anchor) | `IMPLEMENTED` | ACP-194 sonrası C-Chain'de hüküm taşıyan tek mod; orada `accepted-quorum` → `UNKNOWN`. ADR-0011, ADR-0013 |
 | `INDEPENDENT_ICM_VERIFICATION` | **`UNSUPPORTED`** | BLS aggregate signature / predicate'i tarihsel P-Chain validator setine karşı bağımsız doğrulama **iddia edilmez**. Ayrı, source-locked gate. Bkz. ADR-0004 |
 
 ## 6. Çıktı ve entegrasyon
