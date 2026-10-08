@@ -36,7 +36,7 @@ const CANARY_URL = ['https://rpc.example.com/v1/', 'CANARY-0123456789abcdefghijk
 const CANARY_DSN = 'postgres://ictt:CANARY-secret@db.internal:5432/sentinel';
 const CANARY_TOKEN = 'Bearer CANARY-abcdefghijklmnopqrstuvwxyz012345';
 
-const bundle = () => buildBundle(quickstartBundleDraft('healthy'), domainSeparatedSha256);
+const bundle = () => buildBundle(quickstartBundleDraft('healthy'));
 
 export const operationsScenarios = defineScenarios([
   {
@@ -294,7 +294,7 @@ export const operationsScenarios = defineScenarios([
           },
         },
       };
-      const html = renderHtml(buildBundle(hostile, domainSeparatedSha256));
+      const html = renderHtml(buildBundle(hostile));
       return {
         holds: [
           ...(html.includes('&lt;script&gt;') ? ['escaped'] : []),
@@ -338,7 +338,8 @@ export const operationsScenarios = defineScenarios([
         committed: [{ fromBlock: 1n, toBlock: 50n }],
         lastSuccessAt: new Date('2026-06-01T00:00:00.000Z'),
         freshnessTtlMs: 60_000,
-        openReasons: ['DB_FAILURE'],
+        // No reason is invented: the uncommitted tail alone must keep this off green.
+        openReasons: [],
         now: new Date('2026-06-01T00:00:01.000Z'),
       });
       return {
@@ -399,7 +400,8 @@ export const operationsScenarios = defineScenarios([
         committed: [],
         lastSuccessAt: null,
         freshnessTtlMs: 60_000,
-        openReasons: ['DB_FAILURE'],
+        // No reason is invented: the uncommitted tail alone must keep this off green.
+        openReasons: [],
         now: new Date('2026-06-01T00:00:00.000Z'),
       });
       return {
@@ -450,7 +452,7 @@ export const operationsScenarios = defineScenarios([
     expect: { holds: ['degraded', 'verdict-preserved', 'one-attempt'] },
     run: async () => {
       let attempts = 0;
-      const verdict = bundle().core.verdict;
+      const verdict = bundle().core.verdict.protocolStatus;
       const result = await dispatch(
         verdict,
         [

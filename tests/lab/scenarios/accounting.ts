@@ -197,11 +197,11 @@ export const accountingScenarios = defineScenarios([
     title: 'A census that cannot see every remote is not netted to zero',
     corpus: 'gap',
     provenance: 'docs/INVARIANTS.md; census completeness',
-    pinned: { census: 'incomplete', untrackedRemotes: '1' },
+    pinned: { census: 'partial', untrackedRemotes: '1' },
     expect: { protocolStatus: 'UNKNOWN', exitCode: 3 },
     run: () =>
       evaluateFrom({
-        census: 'incomplete',
+        census: 'partial',
         untrackedRemotes: [`0x${'ee'.repeat(20)}`],
       }),
   },

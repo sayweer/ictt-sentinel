@@ -6,6 +6,7 @@ import {
   type DriftObservation,
 } from '@ictt-sentinel/invariant-core';
 import {
+  INTERPRETABLE_FAMILIES,
   classifyFingerprint,
   familyFromRegistryVersion,
   isInterpretable,
@@ -67,7 +68,9 @@ export const protocolScenarios = defineScenarios([
       return {
         holds: [
           ...(refused ? ['not-teleporter-v2'] : []),
-          ...(isInterpretable('teleporter-v2-experimental') ? [] : ['not-interpretable']),
+          ...(INTERPRETABLE_FAMILIES.includes('teleporter-v2-experimental')
+            ? []
+            : ['not-interpretable']),
         ],
       };
     },
@@ -80,7 +83,9 @@ export const protocolScenarios = defineScenarios([
     pinned: { family: 'teleporter-v2-experimental' },
     expect: { holds: ['not-interpretable'] },
     run: () => ({
-      holds: isInterpretable('teleporter-v2-experimental') ? [] : ['not-interpretable'],
+      holds: INTERPRETABLE_FAMILIES.includes('teleporter-v2-experimental')
+        ? []
+        : ['not-interpretable'],
     }),
   },
   {
@@ -93,7 +98,7 @@ export const protocolScenarios = defineScenarios([
     run: () => {
       const result = classifyFingerprint(observed(), []);
       return {
-        holds: result.class === 'recognised' ? [] : ['not-recognised'],
+        holds: isInterpretable(result) ? [] : ['not-recognised'],
         reasonCodes: [`FINGERPRINT_${result.class.toUpperCase().replace(/-/g, '_')}`],
       };
     },
@@ -171,7 +176,10 @@ export const protocolScenarios = defineScenarios([
     run: () => {
       const resolution = resolveAdapter(observed(), [], 'teleporter-v2-experimental');
       return {
-        holds: resolution.outcome === 'resolved' ? [] : ['unresolved'],
+        holds:
+          resolution.outcome === 'supported' || resolution.outcome === 'limited'
+            ? []
+            : ['unresolved'],
         reasonCodes: [`ADAPTER_${resolution.outcome.toUpperCase().replace(/-/g, '_')}`],
       };
     },

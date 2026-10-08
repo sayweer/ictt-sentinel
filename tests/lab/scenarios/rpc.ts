@@ -17,12 +17,7 @@ import {
   classifyObservation,
   findRangeGaps,
 } from '@ictt-sentinel/replay';
-import {
-  buildBundle,
-  domainSeparatedSha256,
-  hashCore,
-  verifyBundle,
-} from '@ictt-sentinel/evidence';
+import { buildBundle, hashCore, verifyBundle } from '@ictt-sentinel/evidence';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { defineScenarios } from '../registry.js';
 
@@ -45,7 +40,7 @@ const HELICON_MAINNET = '1790089200';
 
 /** The quickstart bundle with every chain pinned after ACP-194 under `basis`. */
 const pinnedAfterAcp194 = (basis: string) => {
-  const b = buildBundle(quickstartBundleDraft('healthy'), domainSeparatedSha256);
+  const b = buildBundle(quickstartBundleDraft('healthy'));
   const core = {
     ...b.core,
     chains: b.core.chains.map((c) => ({
@@ -107,8 +102,9 @@ const quorumRun = (observations: readonly WitnessObservation[]) => {
         ? []
         : ['no-pinned-context', `agreeing-domains=${String(result.agreeingTrustDomains.length)}`],
     // No pin means no comparative read, so nothing downstream can be evaluated.
-    protocolStatus: result.outcome === 'agreed' ? undefined : ('UNKNOWN' as const),
-    dataStatus: result.outcome === 'agreed' ? undefined : ('DIVERGENT' as const),
+    ...(result.outcome === 'agreed'
+      ? {}
+      : { protocolStatus: 'UNKNOWN' as const, dataStatus: 'DIVERGENT' as const }),
     exitCode: result.outcome === 'agreed' ? 0 : 3,
   };
 };
@@ -282,7 +278,7 @@ export const rpcScenarios = defineScenarios([
     expect: { protocolStatus: 'UNKNOWN', exitCode: 3, holds: ['capability-refused', 'no-pin'] },
     run: () => {
       const decision = decideFinalityBasis(
-        capability({ acceptedStateEvidence: 'none', probes: [] }),
+        capability({ acceptedStateEvidence: 'unproven', probes: [] }),
       );
       const quorum = evaluateQuorum(
         [witness({ endpointId: 'ep-1' }), witness({ endpointId: 'ep-2', trustDomain: 'beta' })],
@@ -318,7 +314,7 @@ export const rpcScenarios = defineScenarios([
     run: () => {
       const decision = decideFinalityBasis(
         capability({
-          acceptedStateEvidence: 'none',
+          acceptedStateEvidence: 'unproven',
           probes: [{ tag: 'finalized', supported: false, detail: 'not documented' }],
         }),
       );

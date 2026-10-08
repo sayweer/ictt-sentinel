@@ -103,12 +103,13 @@ export const defineScenarios = (inputs: readonly ScenarioInput[]): readonly Scen
     ...input,
     fixed: {
       ...FIXTURE_DEFAULTS,
-      blockNumber: input.pinned.blockNumber ?? input.pinned.height ?? FIXTURE_DEFAULTS.blockNumber,
-      blockHash: input.pinned.blockHash ?? input.pinned.hashA ?? FIXTURE_DEFAULTS.blockHash,
+      blockNumber:
+        input.pinned['blockNumber'] ?? input.pinned['height'] ?? FIXTURE_DEFAULTS.blockNumber,
+      blockHash: input.pinned['blockHash'] ?? input.pinned['hashA'] ?? FIXTURE_DEFAULTS.blockHash,
       amount:
-        input.pinned.amount ??
-        input.pinned.transferredBalance ??
-        input.pinned.U ??
+        input.pinned['amount'] ??
+        input.pinned['transferredBalance'] ??
+        input.pinned['U'] ??
         FIXTURE_DEFAULTS.amount,
       ...input.fixed,
     },
