@@ -377,6 +377,9 @@ export const CALLS = {
   getInitialReserveImbalance: (): string => selector('getInitialReserveImbalance()'),
   /** TokenRemote.getTokenHomeBlockchainID() -> bytes32 */
   getTokenHomeBlockchainID: (): string => selector('getTokenHomeBlockchainID()'),
+  /** TeleporterRegistry.getVersionFromAddress(address) -> uint256 */
+  getVersionFromAddress: (messenger: string): string =>
+    `${selector('getVersionFromAddress(address)')}${encodeAddress(messenger)}`,
   /** TokenRemote.getTokenHomeAddress() -> address */
   getTokenHomeAddress: (): string => selector('getTokenHomeAddress()'),
 } as const;
