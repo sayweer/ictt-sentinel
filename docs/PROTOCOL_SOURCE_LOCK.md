@@ -1,6 +1,6 @@
 # Protokol Kaynak Kilidi
 
-**Tarih kesimi:** 2026-08-31 · **reviewedAt:** 2026-08-31 (Milestone 04)
+**Tarih kesimi:** 2026-08-31 · **reviewedAt:** 2026-10-09 (Milestone 16 — yalnız §6 platform semantiği ve `T06`)
 
 Bu dosya, runtime semantiğinin **hangi değişmez kaynağa** dayandığını kilitler.
 Moving `main` / `latest` / `HEAD` ref'i **canonical source olarak kullanılmaz.**
@@ -139,10 +139,13 @@ contract to independently evaluate each remote for its security and correctness.
 | `allow-unfinalized-queries` varsayılanı | `false` → `latest` = kabul edilmiş blok | `VERIFIED` |
 | Avalanche finality | Kabul (acceptance) finaldir; confirmation depth kavramı **yok** | `VERIFIED` |
 | C-Chain block hash | Node'un verdiği hash esastır; local geth alanlarından **yeniden hesaplanmaz** | Kural (ADR-0002) |
-| ACP-194 | Başlık **"Continuous Execution"**, statü `Implementable (Discussion)`, C-Chain `τ = 5s` | `VERIFIED` |
-| Helicon aktivasyonu | `avalanchego` master `upgrade/upgrade.go`: **Mainnet ve Fuji için `UnscheduledActivationTime`** | `VERIFIED` |
-| En güncel avalanchego release | `v1.14.2` "Granite.2", 2026-03-30; Helicon/ACP-194 **geçmiyor** | `VERIFIED` |
-| Son aktive upgrade | Granite — Mainnet 2025-11-19, Fuji 2025-10-29 | `VERIFIED` |
+| ACP-194 | Başlık **"Continuous Execution"**, statü `Implementable`, C-Chain `τ = 5s`; parametreler yalnız C-Chain için veriliyor | `VERIFIED` (2026-10-09) |
+| Helicon aktivasyonu | `avalanchego` master `upgrade/upgrade.go`: **Mainnet 2026-09-22T15:00:00Z, Fuji 2026-07-28T15:00:00Z** | `VERIFIED` (2026-10-09) |
+| ~~Helicon aktivasyonu (M04 okuması)~~ | ~~Mainnet ve Fuji için `UnscheduledActivationTime`~~ — 2026-10-09'da geçersiz | Tarihsel |
+| En güncel avalanchego release | `v1.15.1` "Helicon.1", 2026-10-01; `v1.15.0` "Helicon" (2026-09-08) aktivasyon listesinde **ACP-194 C-Chain Async Execution** | `VERIFIED` (2026-10-09) |
+| Son aktive upgrade | **Helicon** — Mainnet 2026-09-22, Fuji 2026-07-28 (öncesi: Granite — Mainnet 2025-11-19, Fuji 2025-10-29) | `VERIFIED` (2026-10-09) |
+| C-Chain blok tag'leri (Helicon sonrası) | `latest` = son **executed**; `safe`/`finalized` = son **settled**; `pending` varsayılan olarak last-executed | `VERIFIED` (release notu + ACP metni) |
+| C-Chain kimlikleri | Mainnet `43114` / `0x0427d4b22a2a78bcddd456742caf91b56badbff985ee19aef14573e7343fd652`; Fuji `43113` / `0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5` | `OBSERVED` (public RPC, `eth_chainId` + Warp `getBlockchainID()`) |
 
 ### ACP-194 uyarısı
 
@@ -155,6 +158,10 @@ Proposed -> Accepted -> [değişken gecikme] -> Executed -> [τ] -> Settled
 ACP metni açıkça: kabul edilmiş blokta okunan state **yürütülmüş state'i yansıtmaz**.
 Bu, `ACCEPTED_STATE_ASSURANCE` varsayılanını geçersiz kılar. **Her milestone'da
 `upgrade.go` ve release notları yeniden okunmalıdır.**
+
+> **2026-10-09 — aktif.** Helicon yukarıdaki tarihlerde aktive oldu ve ACP-194'ü içeriyor.
+> ADR-0002'nin sona erme koşulu C-Chain için tetiklendi; geçiş durumu ADR-0011'dedir.
+> Helicon sonrası C-Chain pin'i `accepted-quorum` ile hüküm taşımaz (`UNKNOWN`).
 
 ## 7. SDK sürüm kilidi
 
@@ -186,7 +193,7 @@ Aşağıdakiler **tahmin edilmedi**. Source-lock uygulama milestone'una devredil
 | `T03` | **Supported bytecode fingerprint** kümesi | **KISMEN (M04)** — *creation* bytecode hash'i üretildi; **runtime** hash türetilemez (constructor + immutable), operatör attestation'ına bağlandı |
 | `T04` | `reportBurnedTxFees` ↔ `BURNED_TX_FEES_ADDRESS.balance` ilişkisi | **ÇÖZÜLDÜ (M04)** — ayrı kanal; delta alınır, ödül **yeniden mint edilir** (`_totalMinted` artar), kalan home'a bildirilir |
 | `T05` | `teleporterV2` / `WarpAdapter`'ın herhangi bir canlı ağda deploy edilip edilmediği | Doğrulanamadı → `UNKNOWN` |
-| `T06` | Helicon'un Fuji'de aktive olup olmadığı | Resmî kaynak `unscheduled` diyor; ikincil bloglar 2026-07-28 iddia ediyor → **ÇELİŞKİLİ** |
+| `T06` | Helicon'un Fuji'de aktive olup olmadığı | **ÇÖZÜLDÜ (M16, 2026-10-09)** — `upgrade.go` Fuji `2026-07-28T15:00:00Z`, Mainnet `2026-09-22T15:00:00Z`; ikincil kaynaklar haklıydı |
 | `T07` | Teleporter registry version ↔ implementation fingerprint eşleme tablosu | Registry state okuması gerekir; **çıkarım yapılmayacak** |
 | `T08` | ICTT event/getter yüzeyinin sürüm bazlı tam envanteri | Her `.sol` dosyasının tam okunması gerekir |
 

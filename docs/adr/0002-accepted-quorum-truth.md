@@ -1,6 +1,8 @@
 # ADR-0002 — Accepted-state + provider quorum truth path
 
-- **Durum:** Kabul edildi — **tarihli sona erme koşuluyla**
+- **Durum:** Kabul edildi — **tarihli sona erme koşuluyla**. **C-Chain (Mainnet, Fuji) için
+  sona erme koşulu tetiklendi ve kısmen yerine geçildi: ADR-0011 (2026-10-09).** Diğer zincirlerde
+  geçerlidir.
 - **Tarih:** 2026-08-30
 - **Milestone:** 00
 - **İlgili:** `docs/INVARIANTS.md` §9-10, `docs/ARCHITECTURE.md` §3-4, ADR-0004

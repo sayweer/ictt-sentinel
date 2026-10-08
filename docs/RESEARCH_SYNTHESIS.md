@@ -216,7 +216,7 @@ updated aynı gün, **assignee yok, label yok, PR yok**.
 
 | ID | Varsayım | Yanlışlanırsa ne düşer? | Nasıl test edilir? |
 |---|---|---|---|
-| `A01` | Helicon/ACP-194 en az MVP penceresi boyunca Mainnet'te aktif olmayacak | ADR-0002 truth anchor'ı; tüm pinned-block modeli revizyon ister | `upgrade.go` ve release notlarını her milestone'da yeniden oku |
+| `A01` | Helicon/ACP-194 en az MVP penceresi boyunca Mainnet'te aktif olmayacak — **YANLIŞLANDI (2026-10-09):** Mainnet 2026-09-22'de aktive oldu, ADR-0011 | ADR-0002 truth anchor'ı; tüm pinned-block modeli revizyon ister | `upgrade.go` ve release notlarını her milestone'da yeniden oku |
 | `A02` | Hedef operatörler archive-depth'i yeterli RPC erişimi verebilir | `replay --from-deployment` ve tarihsel kanıt yolu | 10 günlük sprint Gün 7 shadow replay |
 | `A03` | `totalNativeAssetSupply` arzı azaltan yolların tamamını yakalar (yani gerçek üst sınırdır) | Native `sufficient` hükmü; `indeterminate`'e düşer | Source-lock milestone'unda tüm burn/transfer yollarının denetimi |
 | `A04` | Tanınmış fingerprint kümesi gerçek deployment'ların anlamlı bir kısmını kapsar | Support matrix'in pratik değeri; her şey UNKNOWN'a düşer | Gerçek config alındığında bytecode fingerprint denemesi |

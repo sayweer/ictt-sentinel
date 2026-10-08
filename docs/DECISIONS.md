@@ -21,6 +21,7 @@ bağlayıcı olan kararları kaydeder.
 | [0008](adr/0008-hosted-api-stack.md) | Hosted evidence API stack | Kabul | Fastify; repository'deki en büyük trust-boundary genişlemesi olarak kayıtlı |
 | [0009](adr/0009-console-stack.md) | Operatör konsolu stack'i | Kabul | React + Vite + Playwright, exact pin; salt-okunur konsol |
 | [0010](adr/0010-evidence-attestation.md) | Evidence provenance ve opsiyonel attestation | Kabul (yalnız karar) | Ürün imzalamaz; build provenance CI'da, run attestation ayrık DSSE zarfı olarak yalnız doğrulanır |
+| [0011](adr/0011-acp-194-accepted-state-superseded.md) | ACP-194 aktif: C-Chain'de accepted-state truth geçersiz | Kabul — ADR-0002'yi C-Chain için kısmen yerine geçer | Helicon sonrası C-Chain pin'i accepted-quorum ile hüküm taşımaz → `UNKNOWN`; `settled-quorum` ayrı iş |
 
 ---
 
