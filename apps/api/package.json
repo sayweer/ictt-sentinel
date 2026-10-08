@@ -44,7 +44,7 @@
     "@ictt-sentinel/evidence": "workspace:*",
     "@ictt-sentinel/invariant-core": "workspace:*",
     "@ictt-sentinel/storage-postgres": "workspace:*",
-    "fastify": "5.12.3"
+    "fastify": "5.12.5"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

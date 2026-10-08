@@ -539,7 +539,7 @@
     },
     {
       "name": "brace-expansion",
-      "version": "5.0.9",
+      "version": "5.0.12",
       "license": "MIT",
       "scoped": false
     },
@@ -731,19 +731,19 @@
     },
     {
       "name": "fast-uri",
-      "version": "3.1.7",
+      "version": "3.1.8",
       "license": "BSD-3-Clause",
       "scoped": false
     },
     {
       "name": "fast-uri",
-      "version": "4.1.4",
+      "version": "4.2.1",
       "license": "BSD-3-Clause",
       "scoped": false
     },
     {
       "name": "fastify",
-      "version": "5.12.3",
+      "version": "5.12.5",
       "license": "MIT",
       "scoped": false
     },
@@ -1319,7 +1319,7 @@
     },
     {
       "name": "source-map-js",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "license": "BSD-3-Clause",
       "scoped": false
     },

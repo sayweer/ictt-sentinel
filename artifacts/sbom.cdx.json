@@ -1245,10 +1245,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/brace-expansion@5.0.9",
+      "bom-ref": "pkg:npm/brace-expansion@5.0.12",
       "name": "brace-expansion",
-      "version": "5.0.9",
-      "purl": "pkg:npm/brace-expansion@5.0.9",
+      "version": "5.0.12",
+      "purl": "pkg:npm/brace-expansion@5.0.12",
       "licenses": [
         {
           "license": {
@@ -1693,10 +1693,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/fast-uri@3.1.7",
+      "bom-ref": "pkg:npm/fast-uri@3.1.8",
       "name": "fast-uri",
-      "version": "3.1.7",
-      "purl": "pkg:npm/fast-uri@3.1.7",
+      "version": "3.1.8",
+      "purl": "pkg:npm/fast-uri@3.1.8",
       "licenses": [
         {
           "license": {
@@ -1707,10 +1707,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/fast-uri@4.1.4",
+      "bom-ref": "pkg:npm/fast-uri@4.2.1",
       "name": "fast-uri",
-      "version": "4.1.4",
-      "purl": "pkg:npm/fast-uri@4.1.4",
+      "version": "4.2.1",
+      "purl": "pkg:npm/fast-uri@4.2.1",
       "licenses": [
         {
           "license": {
@@ -1721,10 +1721,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/fastify@5.12.3",
+      "bom-ref": "pkg:npm/fastify@5.12.5",
       "name": "fastify",
-      "version": "5.12.3",
-      "purl": "pkg:npm/fastify@5.12.3",
+      "version": "5.12.5",
+      "purl": "pkg:npm/fastify@5.12.5",
       "licenses": [
         {
           "license": {
@@ -3065,10 +3065,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/source-map-js@1.2.1",
+      "bom-ref": "pkg:npm/source-map-js@1.2.2",
       "name": "source-map-js",
-      "version": "1.2.1",
-      "purl": "pkg:npm/source-map-js@1.2.1",
+      "version": "1.2.2",
+      "purl": "pkg:npm/source-map-js@1.2.2",
       "licenses": [
         {
           "license": {
