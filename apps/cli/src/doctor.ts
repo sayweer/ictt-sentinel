@@ -1,3 +1,4 @@
+import { acceptedStateSuperseded } from '@ictt-sentinel/domain';
 import {
   codeHash,
   EIP1967_SLOTS,
@@ -159,6 +160,12 @@ export const probeDeployment = async (
     warp === chain.blockchainId &&
     bytes32(anchor['hash']) === anchorHash &&
     hexQuantity(anchor['number']) === anchorNumber;
+  // After ACP-194 the accepted-quorum basis this probe establishes no longer
+  // stands for executed state on this chain, however well the endpoint behaves.
+  const superseded = acceptedStateSuperseded(
+    { evmChainId: BigInt(chain.evmChainId), blockchainId: chain.blockchainId },
+    hexQuantity(initial['timestamp']),
+  );
   let finality = false;
   try {
     const finalized = object(
@@ -176,7 +183,8 @@ export const probeDeployment = async (
       bytes32(finalized['hash']) === bytes32(exact['hash']) &&
       age >= 0 &&
       age <= chain.finality.maxLagSeconds &&
-      chain.finality.acceptedStateQueries === 'accepted-only';
+      chain.finality.acceptedStateQueries === 'accepted-only' &&
+      !superseded;
   } catch {
     signal.throwIfAborted();
   }
@@ -261,9 +269,11 @@ export const probeDeployment = async (
     fingerprint: fingerprint && stable,
     blockHash: bytes32(after['hash']),
     observedFingerprint: { runtimeHash, implementation, implementationHash, admin, beacon },
-    acceptanceEvidence: finality
-      ? 'finalized-tag-probe; explicit-number-hash-recheck; operator-accepted-only-attestation'
-      : 'unproven',
+    acceptanceEvidence: superseded
+      ? 'superseded-by-acp-194'
+      : finality
+        ? 'finalized-tag-probe; explicit-number-hash-recheck; operator-accepted-only-attestation'
+        : 'unproven',
   };
 };
 

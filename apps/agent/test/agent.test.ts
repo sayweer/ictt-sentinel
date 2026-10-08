@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { loadManifest, loadPolicy } from '@ictt-sentinel/config';
 import { buildBundle } from '@ictt-sentinel/evidence';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { describeConfig, loadAgentConfig } from '../src/config.js';
@@ -6,6 +8,8 @@ import { applyFreshness } from '../src/freshness.js';
 import { evaluateHealth, type AgentState } from '../src/health.js';
 import { ingest } from '../src/ingest.js';
 import { AGENT_METRICS, MAX_SERIES_PER_METRIC, createAgentRegistry } from '../src/metrics.js';
+import { buildWatchPlan } from '../src/plan.js';
+import { supersededLanes } from '../src/runtime.js';
 import { Scheduler, type JobOutcome } from '../src/scheduler.js';
 
 const tick = () =>
@@ -245,5 +249,24 @@ describe('agent boundaries', () => {
     const text = registry.render();
     expect(text).not.toContain('secret.example');
     expect(registry.dropped).toBe(2);
+  });
+});
+
+describe('ACP-194 accepted-state supersession', () => {
+  // The example deployment's home declares evmChainId 43114 (C-Chain mainnet);
+  // its remote is an L1 that ACP-194 does not touch.
+  const plan = buildWatchPlan(
+    loadManifest(readFileSync('config/deployments/example.ictt.yml', 'utf8')).value,
+    loadPolicy(readFileSync('config/policies/default.yml', 'utf8')).value,
+  ).deployment;
+  const helicon = Date.parse('2026-09-22T15:00:00.000Z');
+
+  it('carries each lane identity from the reviewed manifest into the plan', () => {
+    expect(plan.chains.map((c) => c.identity.evmChainId)).toEqual([43114n, 55555n]);
+  });
+
+  it('marks only the C-Chain lane, and only from the activation instant', () => {
+    expect(supersededLanes(plan, new Date(helicon - 1000))).toEqual([]);
+    expect(supersededLanes(plan, new Date(helicon))).toEqual([plan.chains[0]!.chainKey]);
   });
 });

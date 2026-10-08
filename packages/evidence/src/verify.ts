@@ -1,5 +1,6 @@
 import { validBundleShape } from './validate.js';
 import { decodeReplayInput, replayEvaluation } from './native-replay.js';
+import { acceptedStateSuperseded } from '@ictt-sentinel/domain';
 import { aggregate, type AggregationInput } from '@ictt-sentinel/invariant-core';
 import { canonicalStringify } from './canonical.js';
 import { hashCore, factDigest, stateCallDigest, domainSeparatedSha256 } from './hash.js';
@@ -228,6 +229,15 @@ export const verifyBundle = (
       requireEvidence(
         chain.acceptanceEvidence.length > 0 && chain.finalityBasis === 'accepted-quorum',
         'Acceptance capability missing.',
+      );
+      // After ACP-194 an accepted block no longer carries executed state, so an
+      // accepted-quorum pin there backs no verdict until settled-quorum exists.
+      requireEvidence(
+        !acceptedStateSuperseded(
+          { evmChainId: BigInt(chain.evmChainId), blockchainId: chain.blockchainId },
+          BigInt(chain.blockTimestamp),
+        ),
+        'Accepted-state basis superseded by ACP-194 on this chain.',
       );
       requireEvidence(
         /^(0|[1-9][0-9]*)$/.test(chain.blockNumber) && /^0x[0-9a-f]{64}$/.test(chain.blockHash),

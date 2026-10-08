@@ -61,6 +61,10 @@ export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan =>
       },
       chains: sides.map((side) => ({
         chainKey: chainKeyOf(deploymentId, side.name),
+        identity: {
+          evmChainId: BigInt(side.chain.evmChainId),
+          blockchainId: side.chain.blockchainId,
+        },
         config: {
           deploymentId,
           chainKey: chainKeyOf(deploymentId, side.name),

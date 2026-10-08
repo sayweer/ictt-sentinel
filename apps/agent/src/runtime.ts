@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
-import { combineVerdicts, type Verdict } from '@ictt-sentinel/domain';
+import {
+  acceptedStateSuperseded,
+  combineVerdicts,
+  type ChainIdentityRef,
+  type Verdict,
+} from '@ictt-sentinel/domain';
 import {
   runReplay,
   type LogSourcePort,
@@ -32,6 +37,7 @@ import { AGENT_METRICS, type MetricsRegistry } from './metrics.js';
 
 export interface ChainPlan {
   readonly chainKey: string;
+  readonly identity: ChainIdentityRef;
   readonly config: ReplayConfig;
 }
 
@@ -90,6 +96,24 @@ export const observationDigest = (
     .update('\n')
     .update([deploymentId, ...parts].join('|'))
     .digest('hex');
+};
+
+/** Carried by a deployment with a lane whose accepted-state anchor ACP-194 superseded. */
+export const ACCEPTED_STATE_SUPERSEDED = 'ACCEPTED_STATE_SUPERSEDED' as const;
+
+/**
+ * Lanes whose accepted-quorum reading no longer stands for executed state.
+ *
+ * Judged at the tick clock, because a tick is a statement about the present
+ * head. Replay keeps ingesting: the facts are still facts. What cannot stand is
+ * a verdict resting on the superseded anchor, so each lane listed here is one
+ * more required UNKNOWN (docs/adr/0011-acp-194-accepted-state-superseded.md).
+ */
+export const supersededLanes = (plan: DeploymentPlan, now: Date): readonly string[] => {
+  const seconds = BigInt(Math.floor(now.getTime() / 1000));
+  return plan.chains
+    .filter((chain) => acceptedStateSuperseded(chain.identity, seconds))
+    .map((chain) => chain.chainKey);
 };
 
 export interface TickDeps {
@@ -169,10 +193,17 @@ export const runDeploymentTick = async (
     if (dedupKeys.length > 0) await markHintsConsumed(deps.db, dedupKeys);
   }
 
-  const rawVerdict = combineVerdicts(
-    chains.map(({ report }) => ({ verdict: report.verdict, requirement: 'required' as const })),
-  );
-  const reasons = [...new Set(chains.flatMap(({ report }) => report.reasons))].sort();
+  const superseded = supersededLanes(plan, now);
+  const rawVerdict = combineVerdicts([
+    ...chains.map(({ report }) => ({ verdict: report.verdict, requirement: 'required' as const })),
+    ...superseded.map(() => ({ verdict: 'UNKNOWN' as const, requirement: 'required' as const })),
+  ]);
+  const reasons = [
+    ...new Set([
+      ...chains.flatMap(({ report }) => report.reasons),
+      ...(superseded.length > 0 ? [ACCEPTED_STATE_SUPERSEDED] : []),
+    ]),
+  ].sort();
 
   // A tick counts as a success only when every chain came back complete.
   // Anything less leaves the previous success timestamp where it was, so the

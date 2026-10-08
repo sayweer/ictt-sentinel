@@ -70,6 +70,23 @@ describe('self-contained offline verification', () => {
     };
     expect(verifyBundle({ ...b, core, contentHash: hashCore(core) }).verified).toBe(false);
   });
+  it('refuses an accepted-quorum pin taken on a C-Chain after ACP-194 activated', () => {
+    const b = buildBundle(quickstartBundleDraft('healthy'));
+    const helicon = 1_790_089_200;
+    const supersededAt = (timestamp: number) => {
+      const core = {
+        ...b.core,
+        chains: b.core.chains.map((c) =>
+          c.evmChainId === '43114' ? { ...c, blockTimestamp: String(timestamp) } : c,
+        ),
+      };
+      return verifyBundle({ ...b, core, contentHash: hashCore(core) }).findings.some(
+        (f) => f.detail === 'Accepted-state basis superseded by ACP-194 on this chain.',
+      );
+    };
+    expect(supersededAt(helicon - 1)).toBe(false);
+    expect(supersededAt(helicon)).toBe(true);
+  });
   it('binds the state-call result to the arithmetic observation', () => {
     const b = buildBundle(quickstartBundleDraft('healthy'));
     const core = { ...b.core, stateCalls: b.core.stateCalls.map((c) => ({ ...c, result: '999' })) };

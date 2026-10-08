@@ -320,6 +320,32 @@ describe('doctor and registration RPC orchestration', () => {
       expect(r.stdout).not.toContain('untrusted-provider-detail');
     },
   );
+  it('refuses accepted-quorum readiness on a C-Chain pin taken after ACP-194', async () => {
+    const f = setup();
+    // The fixture's remote is Fuji (43113), whose Helicon activation precedes
+    // mainnet's; its home is mainnet (43114), still before activation here.
+    const fujiHelicon = 1_785_250_800n;
+    // Clock and block timestamps move together so the finality lag check still
+    // passes; only the activation instant separates the two runs.
+    const at = (timestamp: bigint): Runtime => ({
+      ...f.runtime,
+      now: () => Number(timestamp + 1n) * 1000,
+      read: async (ep, op, signal) => {
+        const value = await f.runtime.read(ep, op, signal);
+        return op.op === 'block-by-ref'
+          ? { ...(value as object), timestamp: quantity(timestamp) }
+          : value;
+      },
+    });
+    const before = await f.invoke(['doctor', '--pins', f.paths.pins], at(fujiHelicon - 2n));
+    expect(before.code).toBe(0);
+    const after = await f.invoke(['doctor', '--pins', f.paths.pins], at(fujiHelicon));
+    expect(after.code).toBe(3);
+    expect(after.result['ready']).toBe(false);
+    const chains = after.result['chains'] as { ready: boolean }[];
+    expect(chains.map((c) => c.ready)).toEqual([true, false]);
+    expect(after.stdout).toContain('superseded-by-acp-194');
+  });
   it('reports missing secret presence without disclosing values', async () => {
     const f = setup();
     delete f.env['DATABASE_URL'];
