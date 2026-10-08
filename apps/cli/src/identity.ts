@@ -17,7 +17,9 @@ export const buildIdentity = (): Omit<ProducerIdentity, 'schemaVersion'> => {
     }
   };
   scan(`apps/cli/${mode}`);
-  for (const pkg of readdirSync(join(ROOT, 'packages'))) scan(`packages/${pkg}/${mode}`);
+  // Only package directories: a stray file such as Finder's `.DS_Store` is not a package.
+  for (const pkg of readdirSync(join(ROOT, 'packages'), { withFileTypes: true }))
+    if (pkg.isDirectory()) scan(`packages/${pkg.name}/${mode}`);
   const payload = files
     .sort()
     .map((path) => `${path}\0${readFileSync(join(ROOT, path), 'utf8')}`)
