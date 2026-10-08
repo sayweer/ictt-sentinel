@@ -166,6 +166,9 @@ describe('malformed logs are refused, never approximated', () => {
 describe('read-only calls', () => {
   it('use the standard selectors', () => {
     expect(CALLS.totalSupply()).toBe('0x18160ddd');
+    // The offline verifier hard-codes these two to bind the escrow read; keep
+    // them in step (packages/evidence/src/verify.ts).
+    expect(CALLS.getTokenAddress()).toBe('0x10fe9ae8');
     expect(CALLS.balanceOf(addr(0xbeef))).toBe(`0x70a08231${w(0xbeef)}`);
   });
 

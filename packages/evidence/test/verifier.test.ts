@@ -9,6 +9,8 @@ import {
   assertBundleShareable,
   decodeProofInput,
   renderHtml,
+  domainSeparatedSha256,
+  stateCallDigest,
 } from '../src/index.js';
 
 describe('self-contained offline verification', () => {
@@ -105,6 +107,55 @@ describe('self-contained offline verification', () => {
     expect(verifyBundle({ ...b, core: unnamed, contentHash: hashCore(unnamed) }).verified).toBe(
       false,
     );
+  });
+  describe('escrow read on the unlocked home token', () => {
+    const TOKEN = `0x${'ee'.repeat(20)}`;
+    const HOME_ADDR = `0x${'11'.repeat(20)}`;
+    const withEscrow = (o: { holder?: string; named?: string; homeTarget?: string } = {}) => {
+      const b = buildBundle(quickstartBundleDraft('healthy'));
+      const escrow = b.core.stateCalls.find(
+        (c) => c.observationPath === 'homeEscrow.escrowBalance',
+      );
+      if (!escrow) throw new Error('fixture has no escrow read');
+      const call = (target: string, calldata: string, result: string, path: string) => ({
+        ...escrow,
+        observationPath: path,
+        target: target,
+        calldata,
+        result,
+        calldataDigest: domainSeparatedSha256('ictt-sentinel/calldata/v1', calldata),
+        resultDigest: stateCallDigest(target, calldata, result),
+      });
+      const core = {
+        ...b.core,
+        stateCalls: [
+          ...b.core.stateCalls.filter((c) => c.observationPath !== 'homeEscrow.escrowBalance'),
+          call(
+            o.homeTarget ?? HOME_ADDR,
+            '0x10fe9ae8',
+            o.named ?? TOKEN,
+            'homeEscrow.tokenAddress',
+          ),
+          call(
+            TOKEN,
+            `0x70a08231${(o.holder ?? HOME_ADDR).slice(2).padStart(64, '0')}`,
+            escrow.result,
+            'homeEscrow.escrowBalance',
+          ),
+        ],
+      };
+      return verifyBundle({ ...b, core, contentHash: hashCore(core) }).verified;
+    };
+    it('is accepted when the recognised TokenHome names the token and the call reads its balance', () => {
+      expect(withEscrow()).toBe(true);
+    });
+    it.each([
+      ['another holder', { holder: `0x${'12'.repeat(20)}` }],
+      ['a token the home does not name', { named: `0x${'ef'.repeat(20)}` }],
+      ['an unrecognised home', { homeTarget: `0x${'13'.repeat(20)}` }],
+    ])('is refused for %s', (_, o) => {
+      expect(withEscrow(o)).toBe(false);
+    });
   });
   it('binds the state-call result to the arithmetic observation', () => {
     const b = buildBundle(quickstartBundleDraft('healthy'));

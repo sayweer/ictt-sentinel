@@ -352,14 +352,33 @@ export const verifyBundle = (
       new Set(core.rawFacts.map((f) => f.digest)).size === core.rawFacts.length,
       'Duplicate raw fact.',
     );
+    const recognised = (blockchainId: string, address: string): boolean =>
+      core.fingerprints.some(
+        (f) => f.blockchainId === blockchainId && f.address === address && f.recognised,
+      );
+    // The escrow is the home's ERC20, which no source lock recognises. Its read
+    // is accepted only when bound to a recognised TokenHome: that TokenHome's
+    // getTokenAddress() (0x10fe9ae8) must name the target, and the call must be
+    // balanceOf(thatTokenHome) (0x70a08231) at the same pin.
+    const tokenAddress = core.stateCalls.find(
+      (c) => c.observationPath === 'homeEscrow.tokenAddress',
+    );
+    const escrowBound = (call: (typeof core.stateCalls)[number]): boolean =>
+      call.observationPath === 'homeEscrow.escrowBalance' &&
+      tokenAddress !== undefined &&
+      tokenAddress.calldata === '0x10fe9ae8' &&
+      recognised(tokenAddress.blockchainId, tokenAddress.target) &&
+      tokenAddress.blockchainId === call.blockchainId &&
+      tokenAddress.blockNumber === call.blockNumber &&
+      tokenAddress.blockHash === call.blockHash &&
+      tokenAddress.result === call.target &&
+      call.calldata === `0x70a08231${tokenAddress.target.slice(2).padStart(64, '0')}`;
     const observations = new Map<string, string>();
     for (const call of core.stateCalls) {
       requireEvidence(!observations.has(call.observationPath), 'Duplicate state observation.');
       observations.set(call.observationPath, call.result);
       requireEvidence(
-        core.fingerprints.some(
-          (f) => f.blockchainId === call.blockchainId && f.address === call.target && f.recognised,
-        ),
+        recognised(call.blockchainId, call.target) || escrowBound(call),
         'State call target has no recognised fingerprint.',
       );
       requireEvidence(
