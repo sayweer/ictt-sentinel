@@ -78,6 +78,15 @@ export const startAgent = async (env: EnvSource): Promise<AgentProcess> => {
       createLogSource({
         chains: watchPlan.chains,
         read: createEndpointReader({ env, timeoutMs: policy.spec.dataPath.requestTimeoutMs }),
+        hostnameOf: (endpoint) => {
+          const raw = env[endpoint.secretRef];
+          if (raw === undefined) return null;
+          try {
+            return new URL(raw).hostname;
+          } catch {
+            return null;
+          }
+        },
         signal,
         now: () => new Date(),
       }),

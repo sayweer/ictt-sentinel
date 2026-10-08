@@ -1,8 +1,14 @@
+import { createHash } from 'node:crypto';
 import type { Endpoint } from '@ictt-sentinel/config';
 import type { FetchOutcome, LogSourcePort } from '@ictt-sentinel/replay';
 import type { BlockRange } from '@ictt-sentinel/replay';
 import type { BlockFact, LogFact } from '@ictt-sentinel/storage-postgres';
-import { assertLogRange, type ReadOperation } from '@ictt-sentinel/rpc-quorum';
+import {
+  assertLogRange,
+  collapsedIndependenceGroups,
+  correlateEndpoints,
+  type ReadOperation,
+} from '@ictt-sentinel/rpc-quorum';
 
 /**
  * The agent's log source.
@@ -28,7 +34,7 @@ export type EndpointRead = (
 
 export interface ChainWiring {
   readonly chainKey: string;
-  /** Endpoints grouped by independent provider group, in policy order. */
+  /** Endpoints as declared, in manifest order. Grouping into witnesses happens here. */
   readonly endpoints: readonly Endpoint[];
   readonly maxRangeBlocks: number;
 }
@@ -36,6 +42,11 @@ export interface ChainWiring {
 export interface LogSourceOptions {
   readonly chains: readonly ChainWiring[];
   readonly read: EndpointRead;
+  /**
+   * Host an endpoint's URL points at, or null when it cannot be told. Used only
+   * to recognise one endpoint listed twice; the URL itself never enters here.
+   */
+  readonly hostnameOf: (endpoint: Endpoint) => string | null;
   readonly signal: AbortSignal;
   readonly now: () => Date;
 }
@@ -117,25 +128,51 @@ const decodeLog = (chainKey: string, value: unknown, observedAt: Date): LogFact 
 };
 
 /**
- * Group endpoints by their independence unit.
+ * Group endpoints into witnesses.
  *
- * Quorum counts distinct provider groups, never URLs: two endpoints sharing an
- * upstream are one witness, and treating them as two is the single most
- * expensive way to be wrong here (docs/adr/0002-accepted-quorum-truth.md).
+ * A witness is a failure domain, not a URL and not a provider group: endpoints
+ * sharing a trustDomain OR a providerGroup are one witness, and so are two
+ * endpoints that are conclusively the same endpoint (same secret reference or
+ * same hostname) whatever they were labelled. Counting any of those twice is the
+ * single most expensive way to be wrong here (docs/adr/0002-accepted-quorum-truth.md).
+ *
+ * Each witness is keyed by its provider groups, so provenance still names them.
+ * Inside a witness, endpoints keep manifest order: they are redundancy for one
+ * witness, never a second one.
  */
-const byGroup = (endpoints: readonly Endpoint[]): Map<string, readonly Endpoint[]> => {
-  const groups = new Map<string, Endpoint[]>();
-  for (const e of endpoints) {
-    const existing = groups.get(e.providerGroup);
-    if (existing === undefined) groups.set(e.providerGroup, [e]);
-    else existing.push(e);
-  }
-  return groups;
+const byWitness = (
+  endpoints: readonly Endpoint[],
+  hostnameOf: (endpoint: Endpoint) => string | null,
+): Map<string, readonly Endpoint[]> => {
+  const { merges } = correlateEndpoints(
+    endpoints.map((e) => ({
+      endpointId: e.id,
+      trustDomain: e.trustDomain,
+      secretRef: e.secretRef,
+      hostname: hostnameOf(e),
+      addresses: [],
+      cnames: [],
+    })),
+    (input) => createHash('sha256').update(input).digest('hex'),
+  );
+  const order = new Map(endpoints.map((e, i) => [e.id, i]));
+  const position = (e: Endpoint | undefined) => (e === undefined ? 0 : (order.get(e.id) ?? 0));
+  const witnesses = collapsedIndependenceGroups(endpoints, (e) => e.id, merges)
+    .map((group) => [...group].sort((a, b) => position(a) - position(b)))
+    .sort((a, b) => position(a[0]) - position(b[0]));
+  return new Map(
+    witnesses.map((group) => [
+      [...new Set(group.map((e) => e.providerGroup))].sort().join('+'),
+      group,
+    ]),
+  );
 };
 
 export const createLogSource = (options: LogSourceOptions): LogSourcePort => {
   const wiring = new Map(options.chains.map((c) => [c.chainKey, c]));
-  const groupsFor = new Map(options.chains.map((c) => [c.chainKey, byGroup(c.endpoints)]));
+  const groupsFor = new Map(
+    options.chains.map((c) => [c.chainKey, byWitness(c.endpoints, options.hostnameOf)]),
+  );
 
   const endpointsOf = (chainKey: string, group: string): readonly Endpoint[] =>
     groupsFor.get(chainKey)?.get(group) ?? [];

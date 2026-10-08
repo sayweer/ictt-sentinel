@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { loadManifest, loadPolicy } from '@ictt-sentinel/config';
+import { loadManifest, loadPolicy, type Endpoint } from '@ictt-sentinel/config';
 import { buildBundle } from '@ictt-sentinel/evidence';
 import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { describeConfig, loadAgentConfig } from '../src/config.js';
 import { applyFreshness } from '../src/freshness.js';
 import { evaluateHealth, type AgentState } from '../src/health.js';
 import { ingest } from '../src/ingest.js';
+import { createLogSource } from '../src/log-source.js';
 import { AGENT_METRICS, MAX_SERIES_PER_METRIC, createAgentRegistry } from '../src/metrics.js';
 import { buildWatchPlan } from '../src/plan.js';
 import { supersededLanes } from '../src/runtime.js';
@@ -268,5 +269,102 @@ describe('ACP-194 accepted-state supersession', () => {
   it('marks only the C-Chain lane, and only from the activation instant', () => {
     expect(supersededLanes(plan, new Date(helicon - 1000))).toEqual([]);
     expect(supersededLanes(plan, new Date(helicon))).toEqual([plan.chains[0]!.chainKey]);
+  });
+});
+
+describe('witness counting in the live log source', () => {
+  const endpoint = (
+    id: string,
+    trustDomain: string,
+    providerGroup: string,
+    secretRef = `RPC_${id.toUpperCase()}`,
+  ): Endpoint => ({
+    id,
+    trustDomain,
+    providerGroup,
+    role: 'primary',
+    secretRef,
+    archiveDepth: 'full',
+  });
+  const witnesses = (
+    endpoints: readonly Endpoint[],
+    hosts: Readonly<Record<string, string>> = {},
+  ) =>
+    createLogSource({
+      chains: [{ chainKey: 'c', endpoints, maxRangeBlocks: 10 }],
+      read: () => Promise.resolve('0x1'),
+      hostnameOf: (e) => hosts[e.id] ?? `${e.id}.example.test`,
+      signal: new AbortController().signal,
+      now: () => new Date(0),
+    }).providerGroups('c');
+
+  it('counts two provider groups in one trust domain as one witness', () => {
+    expect(
+      witnesses([
+        endpoint('a', 'alpha', 'x'),
+        endpoint('b', 'alpha', 'y'),
+        endpoint('c', 'beta', 'z'),
+      ]),
+    ).toEqual(['x+y', 'z']);
+  });
+
+  it('counts one endpoint listed under two labels as one witness', () => {
+    expect(
+      witnesses([
+        endpoint('a', 'alpha', 'x', 'RPC_SHARED'),
+        endpoint('b', 'beta', 'y', 'RPC_SHARED'),
+      ]),
+    ).toEqual(['x+y']);
+    expect(
+      witnesses([endpoint('a', 'alpha', 'x'), endpoint('b', 'beta', 'y')], {
+        a: 'rpc.shared.test',
+        b: 'rpc.shared.test',
+      }),
+    ).toEqual(['x+y']);
+  });
+
+  it('keeps genuinely separate declarations as separate witnesses', () => {
+    expect(witnesses([endpoint('a', 'alpha', 'x'), endpoint('b', 'beta', 'y')])).toEqual([
+      'x',
+      'y',
+    ]);
+  });
+
+  it('reads a merged witness through its next endpoint, never as a second witness', async () => {
+    const tried: string[] = [];
+    const source = createLogSource({
+      chains: [
+        {
+          chainKey: 'c',
+          endpoints: [endpoint('a', 'alpha', 'x'), endpoint('b', 'alpha', 'y')],
+          maxRangeBlocks: 10,
+        },
+      ],
+      read: (e) => {
+        tried.push(e.id);
+        return e.id === 'a' ? Promise.reject(new Error('down')) : Promise.resolve('0x7');
+      },
+      hostnameOf: () => null,
+      signal: new AbortController().signal,
+      now: () => new Date(0),
+    });
+    expect(source.providerGroups('c')).toEqual(['x+y']);
+    expect(await source.agreedAcceptedHead('c')).toBe(7n);
+    expect(tried).toEqual(['a', 'b']);
+  });
+});
+
+describe('required witness count', () => {
+  it('takes the stricter of the policy floor and the chain quorum', () => {
+    const manifest = loadManifest(
+      readFileSync('config/deployments/example.ictt.yml', 'utf8'),
+    ).value;
+    const policy = loadPolicy(readFileSync('config/policies/default.yml', 'utf8')).value;
+    manifest.spec.home.chain.quorum.independentTrustDomains = 3;
+    const required = buildWatchPlan(manifest, policy).deployment.chains.map(
+      (c) => c.config.agreement.requiredIndependentGroups,
+    );
+    expect(policy.spec.quorum.minIndependentTrustDomains).toBe(2);
+    expect(required).toEqual([3, 2]);
   });
 });

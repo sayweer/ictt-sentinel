@@ -70,7 +70,12 @@ export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan =>
           chainKey: chainKeyOf(deploymentId, side.name),
           startBlock: BigInt(side.from),
           agreement: {
-            requiredIndependentGroups: policy.spec.quorum.minIndependentTrustDomains,
+            // The stricter of the two: a chain may demand more witnesses than the
+            // policy floor, and taking only the policy would quietly lower it.
+            requiredIndependentGroups: Math.max(
+              policy.spec.quorum.minIndependentTrustDomains,
+              side.chain.quorum.independentTrustDomains,
+            ),
             // Only true when the manifest actually declares an archive witness.
             // Claiming an archive fallback that does not exist would let a range
             // count as covered on the strength of a capability nobody has.

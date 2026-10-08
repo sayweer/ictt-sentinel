@@ -24,7 +24,11 @@ export interface LogSourcePort {
    */
   agreedAcceptedHead(chainKey: string): Promise<bigint>;
 
-  /** Independent provider groups available for this chain, in policy order. */
+  /**
+   * Independent witnesses available for this chain, each named by its provider
+   * group(s). The engine counts what this returns, so the adapter must already
+   * have folded shared trust domains and one-endpoint-twice into one witness.
+   */
   providerGroups(chainKey: string): readonly string[];
 
   /** Widest range this provider group will serve, from its declared capability. */
