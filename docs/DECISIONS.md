@@ -22,6 +22,7 @@ bağlayıcı olan kararları kaydeder.
 | [0009](adr/0009-console-stack.md) | Operatör konsolu stack'i | Kabul | React + Vite + Playwright, exact pin; salt-okunur konsol |
 | [0010](adr/0010-evidence-attestation.md) | Evidence provenance ve opsiyonel attestation | Kabul (yalnız karar) | Ürün imzalamaz; build provenance CI'da, run attestation ayrık DSSE zarfı olarak yalnız doğrulanır |
 | [0011](adr/0011-acp-194-accepted-state-superseded.md) | ACP-194 aktif: C-Chain'de accepted-state truth geçersiz | Kabul — ADR-0002'yi C-Chain için kısmen yerine geçer | Helicon sonrası C-Chain pin'i accepted-quorum ile hüküm taşımaz → `UNKNOWN`; `settled-quorum` ayrı iş |
+| [0012](adr/0012-security-patch-upgrades-2026-10.md) | Kilit sonrası yayımlanan advisory'ler için güvenlik yamaları | Kabul | `fastify` 5.12.5 exact pin; transitive paketler mevcut aralıklar içinde yeniden çözüldü, override yok |
 
 ---
 
