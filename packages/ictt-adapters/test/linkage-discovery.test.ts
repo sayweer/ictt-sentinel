@@ -23,22 +23,25 @@ const TOKEN_HOME = addr('a');
 const TOKEN_REMOTE = addr('b');
 const REGISTRY = addr('c');
 
-const home = (over: Partial<HomeSideLinkage> = {}): HomeSideLinkage => ({
-  homeBlockchainId: HOME_CHAIN,
-  tokenHomeAddress: TOKEN_HOME,
-  tokenAddress: addr('d'),
-  homeTokenDecimals: 6,
-  teleporterRegistryAddress: REGISTRY,
-  registeredRemote: {
-    remoteBlockchainId: REMOTE_CHAIN,
-    remoteTokenTransferrerAddress: TOKEN_REMOTE,
-    registered: true,
-    collateralNeeded: 0n,
-    tokenMultiplier: 10n ** 12n,
-    multiplyOnRemote: true,
-  },
-  ...over,
-});
+const home = (
+  over: { [K in keyof HomeSideLinkage]?: HomeSideLinkage[K] | undefined } = {},
+): HomeSideLinkage =>
+  ({
+    homeBlockchainId: HOME_CHAIN,
+    tokenHomeAddress: TOKEN_HOME,
+    tokenAddress: addr('d'),
+    homeTokenDecimals: 6,
+    teleporterRegistryAddress: REGISTRY,
+    registeredRemote: {
+      remoteBlockchainId: REMOTE_CHAIN,
+      remoteTokenTransferrerAddress: TOKEN_REMOTE,
+      registered: true,
+      collateralNeeded: 0n,
+      tokenMultiplier: 10n ** 12n,
+      multiplyOnRemote: true,
+    },
+    ...over,
+  }) as HomeSideLinkage;
 
 const remote = (over: Partial<RemoteSideLinkage> = {}): RemoteSideLinkage => ({
   remoteBlockchainId: REMOTE_CHAIN,
@@ -163,12 +166,7 @@ describe('delivery is not execution', () => {
   });
 
   it('only an executed observation implies execution', () => {
-    expect(
-      impliesSuccessfulExecution({
-        ...({} as never),
-        kind: 'teleporter.message-executed',
-      } as never),
-    ).toBe(true);
+    expect(impliesSuccessfulExecution({ kind: 'teleporter.message-executed' } as never)).toBe(true);
   });
 });
 
@@ -211,16 +209,19 @@ const registration = (
   },
 });
 
-const census = (over: Partial<CensusInput> = {}): CensusInput => ({
-  tokenHomeAddress: TOKEN_HOME,
-  homeBlockchainId: HOME_CHAIN,
-  tokenHomeDeploymentBlock: 100n,
-  scannedFromBlock: 100n,
-  scannedToBlock: 500n,
-  hadLogGap: false,
-  registrations: [registration(REMOTE_CHAIN, TOKEN_REMOTE, 120n)],
-  ...over,
-});
+const census = (
+  over: { [K in keyof CensusInput]?: CensusInput[K] | undefined } = {},
+): CensusInput =>
+  ({
+    tokenHomeAddress: TOKEN_HOME,
+    homeBlockchainId: HOME_CHAIN,
+    tokenHomeDeploymentBlock: 100n,
+    scannedFromBlock: 100n,
+    scannedToBlock: 500n,
+    hadLogGap: false,
+    registrations: [registration(REMOTE_CHAIN, TOKEN_REMOTE, 120n)],
+    ...over,
+  }) as CensusInput;
 
 describe('census completeness is claimed only when it is established', () => {
   it('is complete when the scan starts at the deployment block with no gap', () => {

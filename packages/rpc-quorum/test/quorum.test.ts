@@ -44,20 +44,24 @@ const policy: QuorumPolicy = {
   maxObservationAgeMs: 60_000,
 };
 
-const witness = (over: Partial<WitnessObservation> = {}): WitnessObservation => ({
-  endpointId: 'e1',
-  trustDomain: over.trustDomain ?? 'provider-alpha',
-  providerGroup: over.providerGroup ?? `${over.trustDomain ?? 'provider-alpha'}-prod`,
-  blockchainId: CHAIN,
-  genesisHash: GENESIS,
-  evmChainId: 43114n,
-  networkId: 1n,
-  headBlockNumber: 1000n,
-  hashAtHeight: HASH_A,
-  observedAtMs: NOW,
-  archiveDepth: 'unknown',
-  ...over,
-});
+/** Fields may be passed as undefined on purpose: that is how a missing value is simulated. */
+const witness = (
+  over: { [K in keyof WitnessObservation]?: WitnessObservation[K] | undefined } = {},
+): WitnessObservation =>
+  ({
+    endpointId: 'e1',
+    trustDomain: over.trustDomain ?? 'provider-alpha',
+    providerGroup: over.providerGroup ?? `${over.trustDomain ?? 'provider-alpha'}-prod`,
+    blockchainId: CHAIN,
+    genesisHash: GENESIS,
+    evmChainId: 43114n,
+    networkId: 1n,
+    headBlockNumber: 1000n,
+    hashAtHeight: HASH_A,
+    observedAtMs: NOW,
+    archiveDepth: 'unknown',
+    ...over,
+  }) as WitnessObservation;
 
 describe('quorum counts witnesses independent by provider group and trust domain', () => {
   it('agrees when two independent providers report the same hash', () => {

@@ -127,7 +127,7 @@ describe('content hash', () => {
   });
 
   it('is domain separated from a bare sha256 of the same bytes', () => {
-    const core = draft().core;
+    const core = buildBundle(draft()).core;
     // A different schema version must not be able to collide with this one.
     expect(hashCore(core)).not.toBe(hashCore({ ...core, deploymentId: `${core.deploymentId}-x` }));
   });

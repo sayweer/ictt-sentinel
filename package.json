@@ -33,7 +33,7 @@
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "lint": "eslint .",
-    "typecheck": "tsc --build --force tsconfig.build.json",
+    "typecheck": "tsc --build --force tsconfig.build.json && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",

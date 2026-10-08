@@ -136,7 +136,7 @@ const fixture = (options: { rateLimit?: number; bodyLimit?: number } = {}) => {
 };
 const ingest = (
   app: ReturnType<typeof buildApi>,
-  body: unknown,
+  body: object,
   key = 'idem-key-0000000001',
   token = TOKEN_A,
 ) =>
@@ -190,7 +190,7 @@ describe('hosted evidence API', () => {
     const { app } = fixture();
     const shared = project('sanitized-metadata', bundle());
     expect((await ingest(app, shared, 'same-key-000000001')).statusCode).toBe(201);
-    const changed = structuredClone(shared) as { body: { reasonCodes: string[] } };
+    const changed = structuredClone(shared) as unknown as { body: { reasonCodes: string[] } };
     changed.body.reasonCodes = ['DIFFERENT_REASON'];
     expect((await ingest(app, changed, 'same-key-000000001')).statusCode).toBe(409);
   });
