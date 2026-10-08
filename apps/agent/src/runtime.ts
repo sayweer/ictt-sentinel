@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import {
-  acceptedStateSuperseded,
   combineVerdicts,
+  finalityBasisStands,
   type ChainIdentityRef,
+  type FinalityMode,
   type Verdict,
 } from '@ictt-sentinel/domain';
 import {
@@ -38,6 +39,7 @@ import { AGENT_METRICS, type MetricsRegistry } from './metrics.js';
 export interface ChainPlan {
   readonly chainKey: string;
   readonly identity: ChainIdentityRef;
+  readonly finality: FinalityMode;
   readonly config: ReplayConfig;
 }
 
@@ -102,7 +104,9 @@ export const observationDigest = (
 export const ACCEPTED_STATE_SUPERSEDED = 'ACCEPTED_STATE_SUPERSEDED' as const;
 
 /**
- * Lanes whose accepted-quorum reading no longer stands for executed state.
+ * Lanes whose finality basis no longer stands: accepted-quorum on a chain where
+ * ACP-194 separated acceptance from execution. A settled-quorum lane is never
+ * listed.
  *
  * Judged at the tick clock, because a tick is a statement about the present
  * head. Replay keeps ingesting: the facts are still facts. What cannot stand is
@@ -112,7 +116,7 @@ export const ACCEPTED_STATE_SUPERSEDED = 'ACCEPTED_STATE_SUPERSEDED' as const;
 export const supersededLanes = (plan: DeploymentPlan, now: Date): readonly string[] => {
   const seconds = BigInt(Math.floor(now.getTime() / 1000));
   return plan.chains
-    .filter((chain) => acceptedStateSuperseded(chain.identity, seconds))
+    .filter((chain) => !finalityBasisStands(chain.finality, chain.identity, seconds))
     .map((chain) => chain.chainKey);
 };
 

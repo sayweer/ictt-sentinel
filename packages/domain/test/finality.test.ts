@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ACCEPTED_STATE_SUPERSESSIONS, acceptedStateSuperseded } from '../src/finality.js';
+import {
+  ACCEPTED_STATE_SUPERSESSIONS,
+  acceptedStateSuperseded,
+  finalityBasisStands,
+} from '../src/finality.js';
 
 const MAINNET = { evmChainId: 43114n, blockchainId: ACCEPTED_STATE_SUPERSESSIONS[0]!.blockchainId };
 const FUJI = { evmChainId: 43113n, blockchainId: ACCEPTED_STATE_SUPERSESSIONS[1]!.blockchainId };
@@ -43,5 +47,23 @@ describe('ACP-194 accepted-state supersession', () => {
 
   it('leaves other chains on accepted-state semantics', () => {
     expect(acceptedStateSuperseded(L1, HELICON_MAINNET * 2n)).toBe(false);
+  });
+});
+
+describe('which finality basis can back a verdict', () => {
+  it('lets settled-quorum stand before and after activation', () => {
+    expect(finalityBasisStands('settled-quorum', MAINNET, HELICON_MAINNET - 1n)).toBe(true);
+    expect(finalityBasisStands('settled-quorum', MAINNET, HELICON_MAINNET)).toBe(true);
+  });
+
+  it('lets accepted-quorum stand only where ACP-194 has not separated execution', () => {
+    expect(finalityBasisStands('accepted-quorum', MAINNET, HELICON_MAINNET - 1n)).toBe(true);
+    expect(finalityBasisStands('accepted-quorum', MAINNET, HELICON_MAINNET)).toBe(false);
+    expect(finalityBasisStands('accepted-quorum', L1, HELICON_MAINNET)).toBe(true);
+  });
+
+  it('backs nothing with an unnamed basis', () => {
+    expect(finalityBasisStands('latest', L1, 0n)).toBe(false);
+    expect(finalityBasisStands('', L1, 0n)).toBe(false);
   });
 });

@@ -87,6 +87,25 @@ describe('self-contained offline verification', () => {
     expect(supersededAt(helicon - 1)).toBe(false);
     expect(supersededAt(helicon)).toBe(true);
   });
+  it('verifies a settled-quorum pin on the same C-Chain after activation', () => {
+    const b = buildBundle(quickstartBundleDraft('healthy'));
+    const core = {
+      ...b.core,
+      chains: b.core.chains.map((c) => ({
+        ...c,
+        blockTimestamp: '1790089200',
+        finalityBasis: 'settled-quorum',
+      })),
+    };
+    expect(verifyBundle({ ...b, core, contentHash: hashCore(core) }).verified).toBe(true);
+    const unnamed = {
+      ...core,
+      chains: core.chains.map((c) => ({ ...c, finalityBasis: 'latest' })),
+    };
+    expect(verifyBundle({ ...b, core: unnamed, contentHash: hashCore(unnamed) }).verified).toBe(
+      false,
+    );
+  });
   it('binds the state-call result to the arithmetic observation', () => {
     const b = buildBundle(quickstartBundleDraft('healthy'));
     const core = { ...b.core, stateCalls: b.core.stateCalls.map((c) => ({ ...c, result: '999' })) };

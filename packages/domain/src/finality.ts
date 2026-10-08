@@ -72,3 +72,24 @@ export const acceptedStateSuperseded = (
       blockTimestamp >= s.activatesAt,
   );
 };
+
+/** Named finality semantics a chain is read under. Never a confirmation depth. */
+export const FINALITY_MODES = ['accepted-quorum', 'settled-quorum'] as const;
+export type FinalityMode = (typeof FINALITY_MODES)[number];
+
+/**
+ * Whether a pin taken under this finality basis can back a verdict.
+ *
+ * `settled-quorum` anchors on the block the chain reports as settled (the
+ * `finalized` tag), which is executed state on every chain: under ACP-194 it is
+ * the settled block, and where acceptance and execution never separated it is
+ * the accepted one. `accepted-quorum` stands only where they have not separated.
+ * Anything else is an unnamed semantic and backs nothing.
+ */
+export const finalityBasisStands = (
+  basis: string,
+  chain: ChainIdentityRef,
+  blockTimestamp: bigint,
+): boolean =>
+  basis === 'settled-quorum' ||
+  (basis === 'accepted-quorum' && !acceptedStateSuperseded(chain, blockTimestamp));

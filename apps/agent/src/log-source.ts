@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Endpoint } from '@ictt-sentinel/config';
+import type { FinalityMode } from '@ictt-sentinel/domain';
 import type { FetchOutcome, LogSourcePort } from '@ictt-sentinel/replay';
 import type { BlockRange } from '@ictt-sentinel/replay';
 import type { BlockFact, LogFact } from '@ictt-sentinel/storage-postgres';
@@ -37,6 +38,8 @@ export interface ChainWiring {
   /** Endpoints as declared, in manifest order. Grouping into witnesses happens here. */
   readonly endpoints: readonly Endpoint[];
   readonly maxRangeBlocks: number;
+  /** Which head a witness reports: its accepted head, or its settled (`finalized`) block. */
+  readonly finality: FinalityMode;
 }
 
 export interface LogSourceOptions {
@@ -199,13 +202,29 @@ export const createLogSource = (options: LogSourceOptions): LogSourcePort => {
      * The minimum across groups, not the maximum and not any single provider's
      * answer: a height one witness has not seen is a height this product has no
      * business treating as history.
+     *
+     * Under settled-quorum each witness reports its `finalized` block instead of
+     * its block number. After ACP-194 the block number is the last EXECUTED
+     * block, which runs ahead of what has settled; replaying up to it would turn
+     * unsettled execution into history (docs/adr/0013-settled-quorum-anchor.md).
      */
     agreedAcceptedHead: async (chainKey) => {
       const groups = [...(groupsFor.get(chainKey)?.keys() ?? [])];
       if (groups.length === 0) throw new DecodeError('no provider group configured');
+      const settled = wiring.get(chainKey)?.finality === 'settled-quorum';
       let agreed: bigint | null = null;
       for (const group of groups) {
-        const head = quantity(await readOne(chainKey, group, { op: 'head-block-number' }));
+        const head = settled
+          ? decodeBlock(
+              chainKey,
+              await readOne(chainKey, group, {
+                op: 'block-by-ref',
+                ref: { kind: 'tag', tag: 'finalized' },
+                fullTransactions: false,
+              }),
+              options.now(),
+            ).blockNumber
+          : quantity(await readOne(chainKey, group, { op: 'head-block-number' }));
         agreed = agreed === null || head < agreed ? head : agreed;
       }
       if (agreed === null) throw new DecodeError('no head could be established');

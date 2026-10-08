@@ -48,6 +48,7 @@ export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan =>
     chainKey: chainKeyOf(deploymentId, side.name),
     endpoints: side.chain.endpoints,
     maxRangeBlocks: policy.spec.dataPath.maxLogRangeBlocks,
+    finality: side.chain.finality.mode,
   }));
 
   return {
@@ -65,6 +66,7 @@ export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan =>
           evmChainId: BigInt(side.chain.evmChainId),
           blockchainId: side.chain.blockchainId,
         },
+        finality: side.chain.finality.mode,
         config: {
           deploymentId,
           chainKey: chainKeyOf(deploymentId, side.name),

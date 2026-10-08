@@ -70,6 +70,9 @@ export const bindBundle = (
     require(pin !== undefined &&
       pin.evmChainId === String(chain.evmChainId) &&
       BigInt(pin.blockNumber) >= BigInt(contract.deploymentBlock), 'chain-pin-mismatch');
+    // A pin taken under one finality semantic does not stand in for another.
+    require(pin === undefined ||
+      pin.finalityBasis === chain.finality.mode, 'finality-basis-mismatch');
     require(core.quorum.requiredGroups >=
       chain.quorum.independentTrustDomains, 'chain-quorum-mismatch');
     if (pin)

@@ -1,4 +1,4 @@
-import { acceptedStateSuperseded } from '@ictt-sentinel/domain';
+import { finalityBasisStands } from '@ictt-sentinel/domain';
 import {
   codeHash,
   EIP1967_SLOTS,
@@ -130,9 +130,12 @@ export const probeDeployment = async (
     warp === chain.blockchainId &&
     bytes32(anchor['hash']) === anchorHash &&
     hexQuantity(anchor['number']) === anchorNumber;
-  // After ACP-194 the accepted-quorum basis this probe establishes no longer
-  // stands for executed state on this chain, however well the endpoint behaves.
-  const superseded = acceptedStateSuperseded(
+  // After ACP-194 the accepted-quorum basis no longer stands for executed state
+  // on this chain, however well the endpoint behaves. settled-quorum is what
+  // replaces it, and it rests on the finalized-tag probe below alone.
+  const settled = chain.finality.mode === 'settled-quorum';
+  const superseded = !finalityBasisStands(
+    chain.finality.mode,
     { evmChainId: BigInt(chain.evmChainId), blockchainId: chain.blockchainId },
     hexQuantity(initial['timestamp']),
   );
@@ -153,7 +156,7 @@ export const probeDeployment = async (
       bytes32(finalized['hash']) === bytes32(exact['hash']) &&
       age >= 0 &&
       age <= chain.finality.maxLagSeconds &&
-      chain.finality.acceptedStateQueries === 'accepted-only' &&
+      (settled || chain.finality.acceptedStateQueries === 'accepted-only') &&
       !superseded;
   } catch {
     signal.throwIfAborted();
@@ -241,9 +244,11 @@ export const probeDeployment = async (
     observedFingerprint: { runtimeHash, implementation, implementationHash, admin, beacon },
     acceptanceEvidence: superseded
       ? 'superseded-by-acp-194'
-      : finality
-        ? 'finalized-tag-probe; explicit-number-hash-recheck; operator-accepted-only-attestation'
-        : 'unproven',
+      : !finality
+        ? 'unproven'
+        : settled
+          ? 'finalized-tag-probe; explicit-number-hash-recheck; settled-quorum'
+          : 'finalized-tag-probe; explicit-number-hash-recheck; operator-accepted-only-attestation',
   };
 };
 

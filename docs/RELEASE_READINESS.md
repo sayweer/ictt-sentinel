@@ -8,7 +8,7 @@ mainnet hazır olma iddiası değildir; kurulum ve baseline onayı kullanıcıya
 
 | Alan | Kapı | Kanıt |
 |---|---|---|
-| Failure lab | 88 deterministik senaryo; beş sayaç da `0` | `pnpm run lab` |
+| Failure lab | 90 deterministik senaryo; beş sayaç da `0` | `pnpm run lab` |
 | Kod ve test | lint, typecheck, unit/property, gerçek PostgreSQL integration, E2E, build | `pnpm run verify`, `pnpm run test:e2e` |
 | Supply chain | critical/high advisory `0`, exact pins, frozen lock, immutable Actions SHA, digest-pinned base | `pnpm run verify:supply-chain` |
 | Artefakt | SBOM, lisans envanteri, pilot paket checksum'ları, iki build arasında aynı digest | `artifacts/`, `pnpm run verify:reproducible-build` |
@@ -44,7 +44,7 @@ pre-verdict bir sınır testinde “uygulanamaz” demektir; yeşil hüküm değ
 ```bash
 pnpm run cli -- check --fixture deficit       # CRITICAL, exit 2
 pnpm run cli -- check --fixture disagreement  # UNKNOWN, exit 3
-pnpm run lab                                  # 88 saldırgan senaryo, beş sayaç
+pnpm run lab                                  # 90 saldırgan senaryo, beş sayaç
 ```
 
 Demo çıktısı, komutun exit kodu ve üretilen evidence digest pilot olay kaydına

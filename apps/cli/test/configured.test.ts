@@ -83,7 +83,12 @@ const setup = (scenario: 'healthy' | 'deficit' = 'healthy') => {
       ...draft.core,
       sourceLock: { ...draft.core.sourceLock, sourceLockHash: sourceLockHash() },
       baseline: { manifestHash: manifest.digest, policyHash: policy.digest },
-      chains: draft.core.chains.map((c) => ({ ...c, blockTimestamp: String(NOW / 1000 - 1) })),
+      // Each pin carries the finality semantic its manifest chain declares.
+      chains: draft.core.chains.map((c, i) => ({
+        ...c,
+        blockTimestamp: String(NOW / 1000 - 1),
+        finalityBasis: deployments(m)[i]!.chain.finality.mode,
+      })),
       fingerprints: draft.core.fingerprints.map((f) => ({
         ...f,
         runtimeCodeHash: codeHash('0x6000'),
@@ -345,6 +350,28 @@ describe('doctor and registration RPC orchestration', () => {
     const chains = after.result['chains'] as { ready: boolean }[];
     expect(chains.map((c) => c.ready)).toEqual([true, false]);
     expect(after.stdout).toContain('superseded-by-acp-194');
+
+    // The same chains declared settled-quorum stand after activation, and do so
+    // without the accepted-only attestation accepted-quorum needs.
+    const settled = structuredClone(f.manifest.value);
+    for (const d of deployments(settled)) {
+      d.chain.finality.mode = 'settled-quorum';
+      d.chain.finality.acceptedStateQueries = 'unknown';
+    }
+    writeFileSync(f.paths.manifest, JSON.stringify(settled));
+    const migrated = await f.invoke(['doctor', '--pins', f.paths.pins], at(1_790_089_200n));
+    expect(migrated.code).toBe(0);
+    expect(migrated.stdout).toContain('settled-quorum');
+    expect(migrated.stdout).not.toContain('superseded-by-acp-194');
+  });
+  it('refuses evidence pinned under a different finality semantic than the manifest', async () => {
+    const f = setup();
+    const settled = structuredClone(f.manifest.value);
+    for (const d of deployments(settled)) d.chain.finality.mode = 'settled-quorum';
+    writeFileSync(f.paths.manifest, JSON.stringify(settled));
+    const r = await f.invoke(['check', '--file', f.paths.file, '--offline']);
+    expect(r.code).toBe(3);
+    expect(r.result['faults']).toContain('finality-basis-mismatch');
   });
   it('reports missing secret presence without disclosing values', async () => {
     const f = setup();

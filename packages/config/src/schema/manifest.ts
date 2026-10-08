@@ -40,9 +40,10 @@ export const zAssuranceMode = z.literal('ACCEPTED_STATE_ASSURANCE');
  * acceptance is final; "wait N blocks" would attach a guarantee to a number
  * that does not carry one (docs/INVARIANTS.md 10).
  *
- * `settled-quorum` is reserved for the ACP-194 world, where acceptance and
- * execution separate. It is declared but not yet implemented, so selecting it
- * is refused rather than silently treated as `accepted-quorum`.
+ * `settled-quorum` anchors on the settled block (the `finalized` tag). Under
+ * ACP-194, where acceptance and execution separate, it is the only mode that
+ * can back a verdict on an affected chain; `accepted-quorum` there is UNKNOWN
+ * (docs/adr/0013-settled-quorum-anchor.md).
  */
 export const zFinalityMode = z.enum(['accepted-quorum', 'settled-quorum']);
 
@@ -52,6 +53,7 @@ export const zFinality = z.strictObject({
    * What the operator asserts the endpoints provide. `allow-unfinalized-queries`
    * defaults to false on C-Chain, meaning `latest` is already the accepted
    * block; an endpoint configured otherwise cannot back an accepted-state claim.
+   * Required only by `accepted-quorum`: `settled-quorum` never reads `latest`.
    */
   acceptedStateQueries: z.enum(['accepted-only', 'may-include-unfinalized', 'unknown']),
   maxLagSeconds: z.int().positive().max(86_400),

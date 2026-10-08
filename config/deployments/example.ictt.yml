@@ -42,13 +42,12 @@ spec:
       subnetId: '0x2222222222222222222222222222222222222222222222222222222222222222'
       genesisHash: '0x3333333333333333333333333333333333333333333333333333333333333333'
       finality:
-        # Named semantic, never a confirmation count. Avalanche acceptance is
-        # final, so a depth threshold would attach a guarantee to a number that
-        # does not carry one.
-        mode: accepted-quorum
-        # C-Chain defaults allow-unfinalized-queries to false, so `latest` is
-        # already the accepted block. An endpoint configured otherwise cannot
-        # back an accepted-state claim.
+        # Named semantic, never a confirmation count. On the C-Chain, ACP-194
+        # (Helicon) separated acceptance from execution, so the anchor is the
+        # settled block (the `finalized` tag); accepted-quorum here would be
+        # UNKNOWN (docs/adr/0013-settled-quorum-anchor.md).
+        mode: settled-quorum
+        # Relied on only by accepted-quorum; settled-quorum never reads `latest`.
         acceptedStateQueries: accepted-only
         maxLagSeconds: 60
       endpoints:

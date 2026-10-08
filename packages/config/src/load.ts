@@ -131,18 +131,6 @@ const checkManifestInvariants = (m: Manifest): readonly ConfigIssue[] => {
         ),
       );
     }
-
-    // Reserved for ACP-194. Declared so the migration is visible, refused so it
-    // cannot be silently treated as today's semantics.
-    if (chain.finality.mode === 'settled-quorum') {
-      issues.push(
-        issue(
-          'UNSUPPORTED_API_VERSION',
-          `${path}.finality.mode`,
-          'settled-quorum is reserved for ACP-194 and is not implemented; it must not be selected yet',
-        ),
-      );
-    }
   }
 
   // The census window cannot start after the contract it is meant to enumerate.

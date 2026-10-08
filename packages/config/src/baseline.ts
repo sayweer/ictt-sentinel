@@ -82,7 +82,10 @@ export const exactReplayCapability = (m: Manifest): Capability => {
         `${label}: chain identity is not anchored (no genesisHash or trustedCheckpoint)`,
       );
     }
-    if (chain.finality.acceptedStateQueries !== 'accepted-only') {
+    if (
+      chain.finality.mode === 'accepted-quorum' &&
+      chain.finality.acceptedStateQueries !== 'accepted-only'
+    ) {
       blockedBy.push(`${label}: endpoints are not asserted to answer from accepted state only`);
     }
     const domains = new Set(chain.endpoints.map((e) => e.trustDomain));

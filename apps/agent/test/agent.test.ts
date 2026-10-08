@@ -255,9 +255,12 @@ describe('agent boundaries', () => {
 
 describe('ACP-194 accepted-state supersession', () => {
   // The example deployment's home declares evmChainId 43114 (C-Chain mainnet);
-  // its remote is an L1 that ACP-194 does not touch.
+  // its remote is an L1 that ACP-194 does not touch. The home is put back on
+  // accepted-quorum here, because that is the reading this guard is about.
+  const manifest = loadManifest(readFileSync('config/deployments/example.ictt.yml', 'utf8')).value;
+  manifest.spec.home.chain.finality.mode = 'accepted-quorum';
   const plan = buildWatchPlan(
-    loadManifest(readFileSync('config/deployments/example.ictt.yml', 'utf8')).value,
+    manifest,
     loadPolicy(readFileSync('config/policies/default.yml', 'utf8')).value,
   ).deployment;
   const helicon = Date.parse('2026-09-22T15:00:00.000Z');
@@ -291,7 +294,7 @@ describe('witness counting in the live log source', () => {
     hosts: Readonly<Record<string, string>> = {},
   ) =>
     createLogSource({
-      chains: [{ chainKey: 'c', endpoints, maxRangeBlocks: 10 }],
+      chains: [{ chainKey: 'c', endpoints, maxRangeBlocks: 10, finality: 'accepted-quorum' }],
       read: () => Promise.resolve('0x1'),
       hostnameOf: (e) => hosts[e.id] ?? `${e.id}.example.test`,
       signal: new AbortController().signal,
@@ -338,6 +341,7 @@ describe('witness counting in the live log source', () => {
           chainKey: 'c',
           endpoints: [endpoint('a', 'alpha', 'x'), endpoint('b', 'alpha', 'y')],
           maxRangeBlocks: 10,
+          finality: 'accepted-quorum',
         },
       ],
       read: (e) => {
@@ -351,6 +355,61 @@ describe('witness counting in the live log source', () => {
     expect(source.providerGroups('c')).toEqual(['x+y']);
     expect(await source.agreedAcceptedHead('c')).toBe(7n);
     expect(tried).toEqual(['a', 'b']);
+  });
+});
+
+describe('settled-quorum lanes', () => {
+  const endpoint = (id: string, trustDomain: string): Endpoint => ({
+    id,
+    trustDomain,
+    providerGroup: `${trustDomain}-g`,
+    role: 'primary',
+    secretRef: `RPC_${id.toUpperCase()}`,
+    archiveDepth: 'full',
+  });
+  const block = (n: bigint) => ({
+    number: `0x${n.toString(16)}`,
+    hash: `0x${n.toString(16).padStart(64, '0')}`,
+    parentHash: `0x${(n - 1n).toString(16).padStart(64, '0')}`,
+    timestamp: '0x1',
+  });
+
+  it("anchors the head on each witness's finalized block, never its executed block number", async () => {
+    const asked: string[] = [];
+    const finalized: Record<string, bigint> = { a: 100n, b: 97n };
+    const source = createLogSource({
+      chains: [
+        {
+          chainKey: 'c',
+          endpoints: [endpoint('a', 'alpha'), endpoint('b', 'beta')],
+          maxRangeBlocks: 10,
+          finality: 'settled-quorum',
+        },
+      ],
+      read: (e, op) => {
+        asked.push(op.op === 'block-by-ref' && op.ref.kind === 'tag' ? op.ref.tag : op.op);
+        return op.op === 'head-block-number'
+          ? Promise.resolve('0x3e8')
+          : Promise.resolve(block(finalized[e.id]!));
+      },
+      hostnameOf: () => null,
+      signal: new AbortController().signal,
+      now: () => new Date(0),
+    });
+    expect(await source.agreedAcceptedHead('c')).toBe(97n);
+    expect(asked).toEqual(['finalized', 'finalized']);
+  });
+
+  it('is never listed as superseded, while an accepted lane on the same chain is', () => {
+    const manifest = loadManifest(
+      readFileSync('config/deployments/example.ictt.yml', 'utf8'),
+    ).value;
+    const policy = loadPolicy(readFileSync('config/policies/default.yml', 'utf8')).value;
+    const after = new Date(Date.parse('2026-09-22T15:00:00.000Z'));
+    manifest.spec.home.chain.finality.mode = 'accepted-quorum';
+    expect(supersededLanes(buildWatchPlan(manifest, policy).deployment, after)).toHaveLength(1);
+    manifest.spec.home.chain.finality.mode = 'settled-quorum';
+    expect(supersededLanes(buildWatchPlan(manifest, policy).deployment, after)).toEqual([]);
   });
 });
 

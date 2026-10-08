@@ -17,6 +17,13 @@ import {
   classifyObservation,
   findRangeGaps,
 } from '@ictt-sentinel/replay';
+import {
+  buildBundle,
+  domainSeparatedSha256,
+  hashCore,
+  verifyBundle,
+} from '@ictt-sentinel/evidence';
+import { quickstartBundleDraft } from '@ictt-sentinel/testkit';
 import { defineScenarios } from '../registry.js';
 
 /**
@@ -33,6 +40,22 @@ const NOW = Date.parse('2026-06-01T00:00:00.000Z');
 const HOME_ICM = `0x${'aa'.repeat(32)}`;
 const HASH_A = `0x${'11'.repeat(32)}`;
 const HASH_B = `0x${'22'.repeat(32)}`;
+/** Mainnet Helicon activation, 2026-09-22T15:00:00Z (docs/adr/0011-acp-194-accepted-state-superseded.md). */
+const HELICON_MAINNET = '1790089200';
+
+/** The quickstart bundle with every chain pinned after ACP-194 under `basis`. */
+const pinnedAfterAcp194 = (basis: string) => {
+  const b = buildBundle(quickstartBundleDraft('healthy'), domainSeparatedSha256);
+  const core = {
+    ...b.core,
+    chains: b.core.chains.map((c) => ({
+      ...c,
+      blockTimestamp: HELICON_MAINNET,
+      finalityBasis: basis,
+    })),
+  };
+  return verifyBundle({ ...b, core, contentHash: hashCore(core) });
+};
 const GENESIS = `0x${'00'.repeat(32)}`;
 
 const EXPECTED: ExpectedIdentity = {
@@ -497,6 +520,41 @@ export const rpcScenarios = defineScenarios([
         holds: result.kind === 'blocked' ? ['blocked', result.reason] : [],
       };
     },
+  },
+  {
+    id: 'rpc/accepted-quorum-after-acp-194',
+    title: 'An accepted-quorum pin on a C-Chain after ACP-194 backs no verdict',
+    corpus: 'rpc',
+    provenance:
+      'docs/adr/0011-acp-194-accepted-state-superseded.md; avalanchego upgrade/upgrade.go HeliconTime',
+    pinned: { finalityBasis: 'accepted-quorum', blockTimestamp: HELICON_MAINNET },
+    expect: {
+      protocolStatus: 'UNKNOWN',
+      reasonCodes: ['ACCEPTED_STATE_SUPERSEDED'],
+      exitCode: 3,
+    },
+    run: () => {
+      const result = pinnedAfterAcp194('accepted-quorum');
+      const superseded = result.findings.some((f) =>
+        f.detail.startsWith('Accepted-state basis superseded by ACP-194'),
+      );
+      return {
+        protocolStatus: result.verified ? 'OK' : 'UNKNOWN',
+        exitCode: result.verified ? 0 : 3,
+        reasonCodes: superseded ? ['ACCEPTED_STATE_SUPERSEDED'] : [],
+      };
+    },
+  },
+  {
+    id: 'rpc/settled-quorum-after-acp-194',
+    title: 'The same pins under settled-quorum still verify',
+    corpus: 'operational',
+    provenance: 'docs/adr/0013-settled-quorum-anchor.md',
+    pinned: { finalityBasis: 'settled-quorum', blockTimestamp: HELICON_MAINNET },
+    expect: { holds: ['settled-pin-verifies'] },
+    run: () => ({
+      holds: pinnedAfterAcp194('settled-quorum').verified ? ['settled-pin-verifies'] : [],
+    }),
   },
   {
     id: 'rpc/stale-collection-past-ttl',

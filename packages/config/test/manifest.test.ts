@@ -226,22 +226,39 @@ describe('quorum cannot be faked', () => {
 });
 
 describe('finality semantics', () => {
+  // The example's home is a C-Chain on settled-quorum; its remote is an L1 on
+  // accepted-quorum, which is the chain these accepted-only rules apply to.
   it('rejects accepted-quorum backed by endpoints that may return unfinalized state', () => {
     const bad = mutate(
       VALID_MANIFEST,
-      '        acceptedStateQueries: accepted-only\n        maxLagSeconds: 60',
-      '        acceptedStateQueries: may-include-unfinalized\n        maxLagSeconds: 60',
+      '          acceptedStateQueries: accepted-only\n          maxLagSeconds: 60',
+      '          acceptedStateQueries: may-include-unfinalized\n          maxLagSeconds: 60',
     );
     expect(codesFor(bad)).toContain('SCHEMA');
   });
 
-  it('refuses settled-quorum until ACP-194 is actually implemented', () => {
-    const bad = mutate(
+  it('accepts settled-quorum, which never reads latest and so needs no accepted-only assertion', () => {
+    expect(loadManifest(VALID_MANIFEST).value.spec.home.chain.finality.mode).toBe('settled-quorum');
+    const unasserted = mutate(
       VALID_MANIFEST,
-      '        mode: accepted-quorum\n',
-      '        mode: settled-quorum\n',
+      '        acceptedStateQueries: accepted-only\n        maxLagSeconds: 60',
+      '        acceptedStateQueries: unknown\n        maxLagSeconds: 60',
     );
-    expect(codesFor(bad)).toContain('UNSUPPORTED_API_VERSION');
+    expect(() => loadManifest(unasserted)).not.toThrow();
+    expect(exactReplayCapability(loadManifest(unasserted).value)).toEqual({
+      enabled: true,
+      blockedBy: [],
+    });
+    // The same relaxation does not leak back into accepted-quorum.
+    expect(
+      codesFor(
+        mutate(
+          VALID_MANIFEST,
+          '          acceptedStateQueries: accepted-only\n          maxLagSeconds: 60',
+          '          acceptedStateQueries: unknown\n          maxLagSeconds: 60',
+        ),
+      ),
+    ).toContain('SCHEMA');
   });
 
   it('rejects a missing finality block', () => {
