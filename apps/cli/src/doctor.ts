@@ -13,18 +13,12 @@ import {
 } from '@ictt-sentinel/config';
 import { domainSeparatedSha256, endpointPseudonym } from '@ictt-sentinel/evidence';
 import {
+  collapsedIndependenceGroups,
   correlateEndpoints,
   type EndpointCorrelationInput,
   type ReadOperation,
 } from '@ictt-sentinel/rpc-quorum';
-import {
-  bytes32,
-  hexQuantity,
-  object,
-  independentCount,
-  type Pin,
-  type Runtime,
-} from './runtime.js';
+import { bytes32, hexQuantity, object, type Pin, type Runtime } from './runtime.js';
 
 export const deployments = (manifest: Manifest) => [
   { chain: manifest.spec.home.chain, contract: manifest.spec.home.tokenHome },
@@ -50,30 +44,6 @@ const hostnameOf = (
   } catch {
     return null;
   }
-};
-
-/**
- * A conclusive correlation means one witness wearing two names, so the pair is
- * given one trust domain and the existing count collapses it. Nothing about the
- * counting rule changes; only the input is corrected.
- */
-const collapseMerged = (
-  endpoints: readonly Endpoint[],
-  identify: (endpoint: Endpoint) => string,
-  merges: readonly (readonly [string, string])[],
-): readonly Pick<Endpoint, 'trustDomain' | 'providerGroup'>[] => {
-  const domains = new Map(endpoints.map((e) => [identify(e), e.trustDomain]));
-  for (const [left, right] of merges) {
-    const a = domains.get(left);
-    const b = domains.get(right);
-    if (a === undefined || b === undefined) continue;
-    const winner = a < b ? a : b;
-    for (const [id, domain] of domains) if (domain === a || domain === b) domains.set(id, winner);
-  }
-  return endpoints.map((e) => ({
-    trustDomain: domains.get(identify(e)) ?? e.trustDomain,
-    providerGroup: e.providerGroup,
-  }));
 };
 
 /**
@@ -119,7 +89,7 @@ export const correlatedIndependence = async (
     // "checked and clean" when nothing could be resolved.
     resolved: inputs.some((i) => i.addresses.length > 0 || i.cnames.length > 0),
     collapsed: merges.length > 0,
-    independent: independentCount(collapseMerged(counted, identify, merges)),
+    independent: collapsedIndependenceGroups(counted, identify, merges).length,
   };
 };
 

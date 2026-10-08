@@ -77,6 +77,7 @@ export {
 
 export {
   CONCLUSIVE_SIGNALS,
+  collapsedIndependenceGroups,
   correlateEndpoints,
   independenceGroups,
   type CorrelationFinding,

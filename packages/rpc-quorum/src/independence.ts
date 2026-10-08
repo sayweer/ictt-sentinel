@@ -62,6 +62,37 @@ export const independenceGroups = <T extends IndependenceClaim>(
   return components.map((c) => c.items);
 };
 
+/**
+ * Failure domains once conclusive correlations are applied.
+ *
+ * A merged pair is one endpoint wearing two names, so both sides are folded
+ * into one trustDomain before the declared relation runs. Nothing about the
+ * relation changes; only its input is corrected. This is the one place that
+ * happens, so the operator's `doctor` and the agent that commits facts cannot
+ * count the same configuration differently.
+ */
+export const collapsedIndependenceGroups = <T extends IndependenceClaim>(
+  items: readonly T[],
+  identify: (item: T) => string,
+  merges: readonly (readonly [string, string])[],
+): readonly (readonly T[])[] => {
+  const domains = new Map(items.map((item) => [identify(item), item.trustDomain]));
+  for (const [left, right] of merges) {
+    const a = domains.get(left);
+    const b = domains.get(right);
+    if (a === undefined || b === undefined) continue;
+    const winner = a < b ? a : b;
+    for (const [id, domain] of domains) if (domain === a || domain === b) domains.set(id, winner);
+  }
+  return independenceGroups(
+    items.map((item) => ({
+      item,
+      trustDomain: domains.get(identify(item)) ?? item.trustDomain,
+      providerGroup: item.providerGroup,
+    })),
+  ).map((group) => group.map((claim) => claim.item));
+};
+
 /** One endpoint as declared, plus whatever its host actually resolved to. */
 export interface EndpointCorrelationInput {
   readonly endpointId: string;

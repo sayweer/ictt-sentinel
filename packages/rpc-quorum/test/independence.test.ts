@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONCLUSIVE_SIGNALS,
+  collapsedIndependenceGroups,
   correlateEndpoints,
   type EndpointCorrelationInput,
 } from '../src/independence.js';
@@ -133,5 +134,42 @@ describe('declared independence is compared against observed infrastructure', ()
 
   it('treats exactly the no-network signals as conclusive', () => {
     expect([...CONCLUSIVE_SIGNALS]).toEqual(['same-secret-ref', 'same-hostname']);
+  });
+});
+
+describe('failure domains after conclusive correlation', () => {
+  const claim = (id: string, trustDomain: string, providerGroup: string) => ({
+    id,
+    trustDomain,
+    providerGroup,
+  });
+  const ids = (groups: readonly (readonly { id: string }[])[]) =>
+    groups.map((g) => g.map((c) => c.id).sort());
+
+  it('joins on a shared trustDomain even when provider groups differ', () => {
+    const groups = collapsedIndependenceGroups(
+      [claim('a', 'alpha', 'x'), claim('b', 'alpha', 'y'), claim('c', 'beta', 'z')],
+      (c) => c.id,
+      [],
+    );
+    expect(ids(groups)).toEqual([['a', 'b'], ['c']]);
+  });
+
+  it('folds a merged pair into one domain, transitively through its other members', () => {
+    const groups = collapsedIndependenceGroups(
+      [claim('a', 'alpha', 'x'), claim('b', 'beta', 'y'), claim('c', 'gamma', 'z')],
+      (c) => c.id,
+      [['a', 'b']],
+    );
+    expect(ids(groups)).toEqual([['a', 'b'], ['c']]);
+  });
+
+  it('ignores a merge naming an endpoint it was not given', () => {
+    const groups = collapsedIndependenceGroups(
+      [claim('a', 'alpha', 'x'), claim('b', 'beta', 'y')],
+      (c) => c.id,
+      [['a', 'absent']],
+    );
+    expect(groups).toHaveLength(2);
   });
 });
