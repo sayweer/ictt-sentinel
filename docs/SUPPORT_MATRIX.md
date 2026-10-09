@@ -15,7 +15,8 @@ Statü sözlüğü:
 
 Bir capability'nin bir katmanda uygulanmış olması uçtan uca canlı ürün iddiası değildir. Özellikle
 ekonomik invariant motoru ve evidence codec'i uygulanmıştır; canonical ERC20 için CLI `collect`
-canlı RPC observation'larını bu girdiye dönüştürür (ADR-0014), daemon bunu henüz çalıştırmaz.
+canlı RPC observation'larını bu girdiye dönüştürür (ADR-0014); watcher da aynı collector'ı kendi
+aralığıyla çalıştırır.
 
 ---
 
@@ -23,7 +24,7 @@ canlı RPC observation'larını bu girdiye dönüştürür (ADR-0014), daemon bu
 
 | Tür | Statü | Hüküm | Not |
 |---|---|---|---|
-| Canonical `ERC20TokenRemote`, tanınmış sürüm | `PILOT-VALIDATION` | Deterministik reconciliation + coverage | Canlı `collect` (CLI) var; daemon entegrasyonu ve gerçek deployment kanıtı bekliyor (ADR-0014) |
+| Canonical `ERC20TokenRemote`, tanınmış sürüm | `PILOT-VALIDATION` | Deterministik reconciliation + coverage | Canlı `collect` (CLI ve watcher) var; gerçek deployment kanıtı bekliyor (ADR-0014) |
 | `ERC20TokenRemoteUpgradeable`, tanınmış impl | `IMPLEMENTED-OFFLINE` | Aynı + implementation fingerprint zorunlu | Canlı `doctor` proxy drift'i okur |
 | `NativeTokenRemote` / `NativeTokenRemoteUpgradeable`, tanınmış sürüm | `IMPLEMENTED-OFFLINE` (sınırlı) | **Yalnız** `sufficient` / `indeterminate` / `unknown` | Exact supply iddiası **yasak** |
 | Multi-hop remote-to-remote | `PLANNED-P1` (sınırlı) | Home üzerinden causal message takibi | Doğrudan transfer gibi modellenmez |

@@ -17,10 +17,9 @@
 > [!IMPORTANT]
 > **Release status: Technical Preview.** The pure invariant engine, evidence verifier, live
 > deployment doctor, live remote discovery, accepted-log replay, live canonical ERC20 evidence
-> collection from the CLI, alert outbox, hosted evidence API, and read-only console are
-> implemented and tested. The watcher daemon does not yet run the economic collector, and no
-> real deployment has been evaluated end to end, so this release must not be presented as a
-> production or mainnet safety system.
+> collection (CLI and watcher), alert outbox, hosted evidence API, and read-only console are
+> implemented and tested. No real deployment has been evaluated end to end yet, so this release
+> must not be presented as a production or mainnet safety system.
 
 ## What is ictt-sentinel?
 
@@ -288,9 +287,13 @@ pnpm run cli -- check \
 ```
 
 The live doctor, discovery and `collect` paths are implemented. The watcher performs live
-accepted-log replay, freshness tracking, persistence, and alert delivery, but does not yet run the
-economic collector; wiring it into the daemon, and evaluating a real deployment, remain the
-technical-preview gaps. Native token remotes are not collected (`UNKNOWN`).
+accepted-log replay, freshness tracking, persistence, and alert delivery, and runs the economic
+collector every `ICTT_SENTINEL_ECONOMIC_INTERVAL_MS` (default 15 minutes): each run is stored as an
+evaluation and feeds the `ACC-ERC20-CANONICAL` alert rule. Before the agent starts, register the
+approved manifest's reference rows with the migrator
+(`node packages/storage-postgres/dist/cli.js --register-deployment deployment.yml`). Evaluating a
+real deployment remains the technical-preview gap. Native token remotes are not collected
+(`UNKNOWN`).
 
 For the full operator sequence, database role separation, controlled failure demos, and evidence
 handoff checklist, follow [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md).

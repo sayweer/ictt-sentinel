@@ -60,8 +60,18 @@ canonical ERC20 evidence bundle from live reads.
   messenger address under the pinned ABI, and that contract's runtime code is not fingerprinted.
   The bundle records this as an assumption.
 - **Native remotes are not collected** (`native-collector-not-implemented` → `UNKNOWN`).
-- **The daemon does not run the collector yet**, and no real deployment has been evaluated end
-  to end. `RELEASE: TECHNICAL_PREVIEW` stands.
+- **No real deployment has been evaluated end to end.** `RELEASE: TECHNICAL_PREVIEW` stands.
+
+## Addendum — 2026-10-09 (Milestone 22)
+
+The collector moved to `@ictt-sentinel/collector`. The watcher runs it every
+`ICTT_SENTINEL_ECONOMIC_INTERVAL_MS` (default 15 minutes, minimum 1 minute), separately from the
+replay tick because each run reads full history. A run that produces evidence is stored as an
+evaluation (subject `canonical-erc20-economic`, payload digest = bundle content hash) with a
+verdict event, and is mirrored to the hosted API when one is configured. Every run, evidence or
+not, feeds the `ACC-ERC20-CANONICAL` alert rule. The agent binds evidence to
+`SOURCE_LOCK_DOCUMENT_DIGEST`, which a CLI test keeps equal to the source-lock document, and names
+itself by the content of the code it runs.
 
 ## Rejected alternatives
 

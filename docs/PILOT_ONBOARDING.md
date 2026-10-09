@@ -140,8 +140,9 @@ Sonuç `OK`, `WARN`, `CRITICAL` veya `UNKNOWN`'dır. Bu configured CLI yolu bug�
 yakalanmış, manifest/policy'ye bağlanabilen evidence girdisini offline yeniden oynatır. Canonical
 ERC20 için `collect` komutu bu evidence'ı canlı üretir (`collected.evidence.json`): her onaylı zincir
 settled (veya accepted) pin'de bağımsız tanıklarla okunur, okumalar birebir aynı değilse sonuç
-`UNKNOWN`'dır. Canlı watcher accepted-log replay ve checkpoint üretir; ekonomik collector'ı daemon'a
-bağlamak technical-preview kapsamındaki açık iştir.
+`UNKNOWN`'dır. Canlı watcher accepted-log replay ve checkpoint üretir ve aynı collector'ı
+`ICTT_SENTINEL_ECONOMIC_INTERVAL_MS` aralığıyla (varsayılan 15 dk) çalıştırır; her koşu bir
+değerlendirme kaydı olur ve `ACC-ERC20-CANONICAL` alert kuralını besler.
 
 ---
 
