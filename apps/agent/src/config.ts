@@ -43,6 +43,11 @@ export interface AgentConfig {
   readonly maxConcurrency: number;
   readonly queueLimit: number;
   readonly tickIntervalMs: number;
+  /**
+   * How often the economic collector runs. It reads every approved chain's full
+   * history per run, so it is paced separately from the replay tick.
+   */
+  readonly economicIntervalMs: number;
   readonly jobTimeoutMs: number;
   readonly maxJobAttempts: number;
   readonly backoffMs: number;
@@ -182,6 +187,7 @@ export const loadAgentConfig = (env: EnvSource): AgentConfig => {
     maxConcurrency: int(env, 'MAX_CONCURRENCY', 2, 1, 16),
     queueLimit: int(env, 'QUEUE_LIMIT', 32, 1, 1024),
     tickIntervalMs: int(env, 'TICK_INTERVAL_MS', 30_000, 1_000, 3_600_000),
+    economicIntervalMs: int(env, 'ECONOMIC_INTERVAL_MS', 900_000, 60_000, 86_400_000),
     jobTimeoutMs: int(env, 'JOB_TIMEOUT_MS', 120_000, 1_000, 600_000),
     maxJobAttempts: int(env, 'MAX_JOB_ATTEMPTS', 3, 1, 10),
     backoffMs: int(env, 'BACKOFF_MS', 1_000, 10, 60_000),
@@ -207,6 +213,7 @@ export const describeConfig = (config: AgentConfig): Record<string, unknown> => 
   maxConcurrency: config.maxConcurrency,
   queueLimit: config.queueLimit,
   tickIntervalMs: config.tickIntervalMs,
+  economicIntervalMs: config.economicIntervalMs,
   jobTimeoutMs: config.jobTimeoutMs,
   maxJobAttempts: config.maxJobAttempts,
   shutdownGraceMs: config.shutdownGraceMs,

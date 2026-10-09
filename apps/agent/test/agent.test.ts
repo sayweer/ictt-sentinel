@@ -9,6 +9,7 @@ import { evaluateHealth, type AgentState } from '../src/health.js';
 import { ingest } from '../src/ingest.js';
 import { createLogSource } from '../src/log-source.js';
 import { AGENT_METRICS, MAX_SERIES_PER_METRIC, createAgentRegistry } from '../src/metrics.js';
+import { agentProducerIdentity } from '../src/identity.js';
 import { buildWatchPlan } from '../src/plan.js';
 import { supersededLanes } from '../src/runtime.js';
 import { Scheduler, type JobOutcome } from '../src/scheduler.js';
@@ -210,6 +211,25 @@ describe('agent boundaries', () => {
         ICTT_SENTINEL_MINTER_PRIVATE_KEY: 'must-never-be-read',
       }),
     ).toThrow('signing material');
+  });
+
+  it('paces the economic collector separately, never faster than once a minute', () => {
+    const base = {
+      ICTT_SENTINEL_DATABASE_URL: 'postgres://db.example/sentinel',
+      ICTT_SENTINEL_MANIFEST_PATH: '/config/manifest.yaml',
+      ICTT_SENTINEL_POLICY_PATH: '/config/policy.yaml',
+    };
+    expect(loadAgentConfig(base).economicIntervalMs).toBe(900_000);
+    expect(() =>
+      loadAgentConfig({ ...base, ICTT_SENTINEL_ECONOMIC_INTERVAL_MS: '1000' }),
+    ).toThrow();
+  });
+
+  it('names itself by the content of the code it runs', () => {
+    const a = agentProducerIdentity();
+    expect(a.producer).toBe('ictt-sentinel');
+    expect(a.artifactChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(agentProducerIdentity()).toEqual(a);
   });
 
   it('does not call hosted at local-only and treats hosted outage as an operational result', async () => {

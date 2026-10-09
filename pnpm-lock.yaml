@@ -50,6 +50,9 @@ importers:
       '@ictt-sentinel/alerts':
         specifier: workspace:*
         version: link:../../packages/alerts
+      '@ictt-sentinel/collector':
+        specifier: workspace:*
+        version: link:../../packages/collector
       '@ictt-sentinel/config':
         specifier: workspace:*
         version: link:../../packages/config

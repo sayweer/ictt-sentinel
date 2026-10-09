@@ -13,6 +13,7 @@ import { createAgentService, type AgentService } from './daemon.js';
 import { createLogSource } from './log-source.js';
 import { AGENT_METRICS } from './metrics.js';
 import { createEndpointReader } from './rpc.js';
+import { agentProducerIdentity } from './identity.js';
 import { Scheduler } from './scheduler.js';
 import { createObserveServer } from './serve.js';
 
@@ -67,9 +68,12 @@ export interface AgentProcess {
 
 export const startAgent = async (env: EnvSource): Promise<AgentProcess> => {
   const config = loadAgentConfig(env);
-  const manifest = loadManifest(readConfig(config.manifestPath)).value;
-  const policy = loadPolicy(readConfig(config.policyPath)).value;
+  const loadedManifest = loadManifest(readConfig(config.manifestPath));
+  const loadedPolicy = loadPolicy(readConfig(config.policyPath));
+  const manifest = loadedManifest.value;
+  const policy = loadedPolicy.value;
   assertManifestMeetsPolicy(manifest, policy);
+  const read = createEndpointReader({ env, timeoutMs: policy.spec.dataPath.requestTimeoutMs });
   const db = createDb(config.databaseUrl, {
     max: config.maxConcurrency + 2,
     statementTimeoutSeconds: Math.max(1, Math.ceil(config.jobTimeoutMs / 1000)),
@@ -80,10 +84,13 @@ export const startAgent = async (env: EnvSource): Promise<AgentProcess> => {
     policy,
     db,
     env,
+    manifestDigest: loadedManifest.digest,
+    policyDigest: loadedPolicy.digest,
+    economic: { reader: { read, now: () => Date.now() }, producer: agentProducerIdentity() },
     sourceFor: (signal, watchPlan) =>
       createLogSource({
         chains: watchPlan.chains,
-        read: createEndpointReader({ env, timeoutMs: policy.spec.dataPath.requestTimeoutMs }),
+        read,
         hostnameOf: (endpoint) => {
           const raw = env[endpoint.secretRef];
           if (raw === undefined) return null;
@@ -109,6 +116,8 @@ export const startAgent = async (env: EnvSource): Promise<AgentProcess> => {
     sleep,
     run: async (_job, signal) => {
       await service.evaluate(signal);
+      // Paced by its own interval; returns at once when not due.
+      await service.collectEconomic(signal);
       await service.drain(signal);
     },
     onOutcome: (outcome) => {

@@ -23,7 +23,8 @@
       "@ictt-sentinel/ictt-adapters",
       "@ictt-sentinel/replay",
       "@ictt-sentinel/storage-postgres",
-      "@ictt-sentinel/alerts"
+      "@ictt-sentinel/alerts",
+      "@ictt-sentinel/collector"
     ]
   },
   "main": "./dist/index.js",
@@ -51,7 +52,8 @@
     "@ictt-sentinel/ictt-adapters": "workspace:*",
     "@ictt-sentinel/replay": "workspace:*",
     "@ictt-sentinel/storage-postgres": "workspace:*",
-    "@ictt-sentinel/alerts": "workspace:*"
+    "@ictt-sentinel/alerts": "workspace:*",
+    "@ictt-sentinel/collector": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

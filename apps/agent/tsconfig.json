@@ -38,6 +38,9 @@
     },
     {
       "path": "../../packages/alerts"
+    },
+    {
+      "path": "../../packages/collector"
     }
   ]
 }
