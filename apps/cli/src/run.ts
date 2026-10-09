@@ -82,6 +82,11 @@ CONFIGURED COMMANDS
   discover --manifest <m> --policy <p> --pins <pins> [--resume]
   check|replay --manifest <m> --policy <p> --file <bundle> [--offline]
   evidence export --manifest <m> --policy <p> --file <bundle> [--offline]
+  collect --manifest <m> --policy <p> [--pins <pins>] [--max-facts <n>]
+                          Read every approved chain live at its settled (or
+                          accepted) pin through independent witnesses and write
+                          collected.evidence.json/.html. Canonical ERC20 only;
+                          --max-facts bounds the logs read per chain.
   check/replay also accept --pins, --max-facts and --resume.
   Discovery scans one policy-bounded block range per invocation; --max-facts
   bounds returned registrations. Unknown remotes remain unapproved candidates.

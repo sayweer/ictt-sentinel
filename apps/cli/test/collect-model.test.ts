@@ -134,7 +134,8 @@ describe('route assessment', () => {
       digestOf,
     );
     expect(r.openEdges).toEqual([{ direction: 'home-to-remote', messageId: id(9) }]);
-    expect(r.effects[0]?.hasUniqueAuthorisedSource).toBe(false);
+    // Without a source there is nothing to judge the credit against.
+    expect(r.effects).toEqual([]);
   });
 
   it('marks an amount that differs from its source and a doubled execution', () => {

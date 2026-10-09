@@ -170,10 +170,11 @@ const assessDirection = (
     const sourceFact = source.length === 1 ? (source[0] ?? null) : null;
     if (source.length === 0) {
       // Credited inside the cut, caused outside it (or never seen): the
-      // identity cannot be evaluated with these pins.
+      // identity cannot be evaluated with these pins. It is an open edge, not
+      // an effect - an effect needs a source to be judged against, and without
+      // one the only honest outcome is UNKNOWN.
       openEdges.push({ direction: d.direction, messageId });
-    }
-    if (amount !== null) {
+    } else if (amount !== null) {
       effects.push({
         messageKey: messageId,
         remoteBlockchainId: route.remoteBlockchainId,

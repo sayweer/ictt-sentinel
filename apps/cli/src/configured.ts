@@ -35,6 +35,7 @@ import {
 } from './runtime.js';
 import { deployments, doctorConfigured, witnessId } from './doctor.js';
 import { discoverConfigured } from './discovery.js';
+import { collectConfigured } from './collect/collect.js';
 
 /** Bind observations to the actual reviewed files, never merely a claimed digest. */
 export const bindBundle = (
@@ -158,10 +159,11 @@ export const runAsync = async (
       args.fixture !== null ||
       args.help ||
       args.version ||
-      !['check', 'replay', 'discover', 'doctor', 'evidence'].includes(args.command) ||
+      !['check', 'replay', 'discover', 'doctor', 'evidence', 'collect'].includes(args.command) ||
       (args.command === 'evidence' && args.sub !== 'export') ||
       (args.command === 'doctor' &&
-        (offline || args.file !== null || args.resume || args.maxFacts !== 100))
+        (offline || args.file !== null || args.resume || args.maxFacts !== 100)) ||
+      (args.command === 'collect' && (offline || args.file !== null || args.resume))
     )
       throw new InputError();
     const manifestPath = values.get('--manifest'),
@@ -213,6 +215,50 @@ export const runAsync = async (
           ? EXIT.ok
           : EXIT.requiredUnknown;
       output('doctor', { ...result, exitCode: code });
+      return code;
+    }
+    if (args.command === 'collect') {
+      // Only this command writes these names, so only its own inputs are checked
+      // against them; `check --file` must still be able to read a collected bundle.
+      for (const name of ['collected.evidence.json', 'collected.evidence.html'])
+        if (
+          [manifestPath, policyPath, pinsFile].some(
+            (p) => p !== undefined && resolve(p) === resolve(root, name),
+          )
+        )
+          throw new InputError();
+      const collected = await collectConfigured({
+        manifest,
+        policy,
+        pins,
+        env: options.env,
+        runtime,
+        maxLogs: args.maxFacts,
+        signal,
+      });
+      if (collected.status === 'unknown') {
+        output('collect', {
+          evidence: null,
+          reasons: collected.reasons,
+          exitCode: EXIT.requiredUnknown,
+        });
+        return EXIT.requiredUnknown;
+      }
+      const { bundle } = collected;
+      assertBundleShareable(bundle);
+      signal.throwIfAborted();
+      const files = [
+        writeAtomic(root, 'collected.evidence.json', `${JSON.stringify(bundle, null, 2)}\n`).path,
+        writeAtomic(root, 'collected.evidence.html', renderHtml(bundle)).path,
+      ];
+      const code = exitCodeForVerdict(bundle.core.verdict);
+      output('collect', {
+        contentHash: bundle.contentHash,
+        files,
+        verdict: bundle.core.verdict,
+        trustBoundary: verifyBundle(bundle).trustBoundary,
+        exitCode: code,
+      });
       return code;
     }
     if (args.command === 'discover' && args.file === null) {
