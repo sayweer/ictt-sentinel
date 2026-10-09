@@ -1,4 +1,5 @@
 import type { Manifest, Policy } from '@ictt-sentinel/config';
+import { chainKeyOf } from '@ictt-sentinel/storage-postgres';
 import type { DeploymentPlan } from './runtime.js';
 import type { ChainWiring } from './log-source.js';
 
@@ -18,13 +19,10 @@ export interface WatchPlan {
 }
 
 /**
- * Chain key.
- *
- * Namespaced by deployment because `chains.chain_key` is a global primary key
- * and two deployments watching the same chain are still two lanes.
+ * Chain key, as the migrator registered it (`registerDeployment`). One
+ * definition, owned by the table's package.
  */
-export const chainKeyOf = (deploymentId: string, chainName: string): string =>
-  `${deploymentId}/${chainName}`;
+export { chainKeyOf };
 
 export const buildWatchPlan = (manifest: Manifest, policy: Policy): WatchPlan => {
   if (manifest.spec.baseline.state !== 'approved') {

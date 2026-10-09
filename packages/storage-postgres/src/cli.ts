@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { loadManifest } from '@ictt-sentinel/config';
 import { createDb } from './client.js';
+import { referenceRowsFor, registerDeployment } from './reference.js';
 import { MIGRATOR_ROLE, ensureRoles } from './bootstrap.js';
 import { migrate } from './migrate.js';
 import { redactDsn } from './dsn.js';
@@ -12,6 +15,7 @@ import { redactDsn } from './dsn.js';
  *
  *   pnpm --filter @ictt-sentinel/storage-postgres run migrate
  *   pnpm --filter @ictt-sentinel/storage-postgres run migrate -- --bootstrap-roles
+ *   pnpm --filter @ictt-sentinel/storage-postgres run migrate -- --register-deployment <manifest>
  *
  * The DSN is read from ICTT_SENTINEL_DATABASE_URL. Only the name of that variable
  * appears in code; the value is never logged, and any error text that might quote
@@ -37,6 +41,29 @@ const main = async (argv: readonly string[]): Promise<number> => {
       // Applying application migrations there would both violate that boundary
       // and fail ownership checks. Migration is a separate invocation against
       // the operator-created, migrator-owned application database.
+      return 0;
+    }
+    const registerAt = argv.indexOf('--register-deployment');
+    if (registerAt !== -1) {
+      // Reference rows are operator-curated: written here by the migrator from a
+      // reviewed manifest, read-only to the runtime role.
+      const path = argv[registerAt + 1];
+      if (path === undefined || path.startsWith('-')) {
+        process.stderr.write('--register-deployment requires a manifest path\n');
+        return 2;
+      }
+      const manifest = loadManifest(readFileSync(path, 'utf8'));
+      if (manifest.value.spec.baseline.state !== 'approved') {
+        process.stderr.write('only an operator-approved manifest baseline can be registered\n');
+        return 2;
+      }
+      const result = await registerDeployment(
+        db,
+        referenceRowsFor(manifest.value, manifest.digest),
+      );
+      process.stdout.write(
+        `registered ${manifest.value.metadata.name} on ${db.label}: ${String(result.inserted)} new row(s)\n`,
+      );
       return 0;
     }
     const result = await migrate(db, { role: MIGRATOR_ROLE });

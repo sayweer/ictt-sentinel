@@ -140,3 +140,11 @@ export type {
   HostedSharingLevel,
   HostedVerifyStatus,
 } from './hosted-evidence.js';
+
+export {
+  ReferenceConflictError,
+  chainKeyOf,
+  referenceRowsFor,
+  registerDeployment,
+} from './reference.js';
+export type { ReferenceRows } from './reference.js';

@@ -53,6 +53,17 @@ Davranış:
 - Eşzamanlı iki runner advisory lock üzerinde sıraya girer, DDL yarıştırmaz.
 - Çalıştırma `SET LOCAL ROLE ictt_sentinel_migrator` yapar; nesneler login rolüne değil gruba ait olur.
 
+Migration'dan sonra, izlenecek her onaylı manifest için referans satırlarını migrator ile kaydet:
+
+```bash
+pnpm --filter @ictt-sentinel/storage-postgres run migrate -- --register-deployment deployment.yml
+```
+
+`deployments` ve `chains` operatör küratörlüğündeki referans veridir; runtime rolü yalnız okur.
+Kayıt yapılmadan agent'ın ilk fact yazımı foreign key'e takılır. Komut idempotenttir; aynı
+deployment adı farklı bir manifest digest'iyle gelirse `ReferenceConflictError` ile durur — kayıtlı
+fact'lerin kimliği sessizce değiştirilmez.
+
 ## 3. Bağlantı ve TLS
 
 **Production'da `sslmode=verify-full` zorunludur.** `require` yetersizdir: sertifika zincirini

@@ -115,9 +115,14 @@ ICTT_SENTINEL_DATABASE_URL='postgres://<superuser>@127.0.0.1:5432/postgres' \
 psql -c 'CREATE DATABASE ictt_sentinel OWNER ictt_sentinel_migrator'
 ICTT_SENTINEL_DATABASE_URL='postgres://<migrator>@127.0.0.1:5432/ictt_sentinel' \
   node packages/storage-postgres/dist/cli.js
+ICTT_SENTINEL_DATABASE_URL='postgres://<migrator>@127.0.0.1:5432/ictt_sentinel' \
+  node packages/storage-postgres/dist/cli.js --register-deployment deployment.yml
 ```
 
-Sahiplik adımı atlanamaz; gerekçesi `docs/BACKUP_RESTORE.md` §1'de.
+Sahiplik adımı atlanamaz; gerekçesi `docs/BACKUP_RESTORE.md` §1'de. Son komut onaylı manifest'in
+deployment ve zincir satırlarını yazar; agent'ın yazdığı her fact bunlara bağlıdır ve runtime rolü
+bu referans tabloları yalnız okuyabilir. Aynı manifest'le tekrar çalıştırmak etkisizdir; farklı bir
+manifest'le aynı deployment adı reddedilir.
 
 ---
 
