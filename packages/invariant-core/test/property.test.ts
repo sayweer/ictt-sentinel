@@ -87,6 +87,50 @@ describe('order independence and idempotency', () => {
     expect(canonicalInputString(input)).toBe(canonicalInputString(input));
   });
 
+  it('does not let the key order of nested objects reach the canonical string', () => {
+    const input = proofInput({
+      ...scenario(),
+      pending: [pendingEnvelope('home-to-remote', 5n)],
+    });
+    // The same values with every nested object's keys in reverse order.
+    const reversed = <T extends object>(o: T): T =>
+      Object.fromEntries(Object.entries(o).reverse()) as T;
+    const shuffled = {
+      ...input,
+      provenance: reversed(input.provenance),
+      freshness: reversed(input.freshness),
+      pending: input.pending.map(reversed),
+      effects: [
+        reversed({
+          messageKey: 'm1',
+          amount: 1n,
+          remoteBlockchainId: 'r',
+          remoteAddress: 'a',
+          hasUniqueAuthorisedSource: true,
+          routeMatchesSource: true,
+          duplicateEffect: false,
+          causalSourceFact: 'f',
+        }),
+      ],
+    };
+    const ordered = {
+      ...input,
+      effects: [
+        {
+          messageKey: 'm1',
+          amount: 1n,
+          remoteBlockchainId: 'r',
+          remoteAddress: 'a',
+          hasUniqueAuthorisedSource: true,
+          routeMatchesSource: true,
+          duplicateEffect: false,
+          causalSourceFact: 'f',
+        },
+      ],
+    };
+    expect(canonicalInputString(shuffled)).toBe(canonicalInputString(ordered));
+  });
+
   it('changes the digest when a pinned block hash changes', () => {
     const a = run(scenario());
     const b = run({ ...scenario(), remotes: [remote({ transferredBalance: 1_751n })] });

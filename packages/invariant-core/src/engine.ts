@@ -44,16 +44,33 @@ export type Hasher = (canonical: string) => string;
  * which is what makes an evidence bundle reproducible. bigints become decimal
  * strings because JSON numbers are doubles, and every list is sorted so provider
  * arrival order cannot change the result.
+ *
+ * Every nested object is spelled out field by field. Spreading a caller's object
+ * would let its key order reach the digest, so the same observations built in a
+ * different order would hash differently - exactly the irreproducibility this
+ * function exists to rule out. The field order matches the bundle decoder's, so
+ * digests of existing evidence are unchanged.
  */
 export const canonicalInputString = (input: ProofInput): string => {
   const canonical = {
     deploymentId: input.deploymentId,
     family: input.family,
-    provenance: input.provenance,
+    provenance: {
+      manifestHash: input.provenance.manifestHash,
+      policyHash: input.provenance.policyHash,
+      sourceLockCommitSha: input.provenance.sourceLockCommitSha,
+      adapterId: input.provenance.adapterId,
+      adapterVersion: input.provenance.adapterVersion,
+      ruleVersion: input.provenance.ruleVersion,
+    },
     census: input.census,
     untrackedRemotes: [...input.untrackedRemotes].sort(),
     cut: input.cut,
-    freshness: input.freshness,
+    freshness: {
+      fresh: input.freshness.fresh,
+      independentWitnessGroups: input.freshness.independentWitnessGroups,
+      requiredWitnessGroups: input.freshness.requiredWitnessGroups,
+    },
     remotes: [...input.remotes]
       .map((r) => ({
         remoteBlockchainId: r.remoteBlockchainId,
@@ -81,10 +98,26 @@ export const canonicalInputString = (input: ProofInput): string => {
       ),
     // Sorted, so provider arrival order cannot change the digest.
     pending: [...input.pending]
-      .map((p) => ({ ...p, amount: p.amount.toString(10) }))
+      .map((p) => ({
+        messageKey: p.messageKey,
+        direction: p.direction,
+        amount: p.amount.toString(10),
+        ageSeconds: p.ageSeconds,
+        remoteBlockchainId: p.remoteBlockchainId,
+        remoteAddress: p.remoteAddress,
+      }))
       .sort((a, b) => (a.messageKey < b.messageKey ? -1 : a.messageKey > b.messageKey ? 1 : 0)),
     effects: [...input.effects]
-      .map((e) => ({ ...e, amount: e.amount.toString(10) }))
+      .map((e) => ({
+        messageKey: e.messageKey,
+        amount: e.amount.toString(10),
+        remoteBlockchainId: e.remoteBlockchainId,
+        remoteAddress: e.remoteAddress,
+        hasUniqueAuthorisedSource: e.hasUniqueAuthorisedSource,
+        routeMatchesSource: e.routeMatchesSource,
+        duplicateEffect: e.duplicateEffect,
+        causalSourceFact: e.causalSourceFact,
+      }))
       .sort((a, b) => (a.messageKey < b.messageKey ? -1 : a.messageKey > b.messageKey ? 1 : 0)),
     homeEscrow: {
       escrowBalance: input.homeEscrow.escrowBalance?.toString(10) ?? null,
