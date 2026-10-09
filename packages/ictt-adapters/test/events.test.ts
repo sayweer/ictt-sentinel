@@ -26,7 +26,12 @@ interface LiveLog extends EventLog {
 }
 const LIVE = JSON.parse(
   readFileSync(fileURLToPath(new URL('./live-mainnet-logs.json', import.meta.url)), 'utf8'),
-) as { tokensSent: LiveLog; receiveCrossChainMessage: LiveLog; messageExecuted: LiveLog };
+) as {
+  tokensSent: LiveLog;
+  receiveCrossChainMessage: LiveLog;
+  messageExecuted: LiveLog;
+  icttTokenHomeTokensSent: { note: string; log: LiveLog };
+};
 
 const w = (value: bigint | number): string => BigInt(value).toString(16).padStart(64, '0');
 const addr = (n: number): string => `0x${n.toString(16).padStart(40, '0')}`;
@@ -51,6 +56,17 @@ describe('decoding real logs', () => {
     expect(e.sender).toBe(`0x${(LIVE.tokensSent.topics[2] ?? '').slice(-40)}`);
     expect(e.destinationBlockchainId).toBe(`0x${LIVE.tokensSent.data.slice(2, 66)}`);
     expect(e.amount).toBe(BigInt(`0x${LIVE.tokensSent.data.slice(-64)}`));
+  });
+
+  it('reads TokensSent from a genuine ICTT TokenHome as a single-hop send', () => {
+    // This emitter answers the pinned TokenHome getters; see the fixture note.
+    const log = LIVE.icttTokenHomeTokensSent.log;
+    const e = decodeTokensSent(log);
+    expect(log.address).toBe('0x33a31e0f62c0ddf25090b61ef21a70d5f48725b7');
+    expect(e.messageId).toBe(log.topics[1]);
+    // TokenHome._send requires a zero multi-hop fallback for a single-hop send.
+    expect(e.multiHopFallback).toBe(`0x${'00'.repeat(20)}`);
+    expect(e.amount).toBeGreaterThan(0n);
   });
 
   it('reads the TeleporterMessage inside a ReceiveCrossChainMessage log', () => {
