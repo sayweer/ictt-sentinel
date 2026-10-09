@@ -44,9 +44,14 @@ import {
   type RemoteObservation,
 } from '@ictt-sentinel/invariant-core';
 import { collapsedIndependenceGroups, correlateEndpoints } from '@ictt-sentinel/rpc-quorum';
-import { deployments, probeDeployment, witnessId } from '../doctor.js';
-import { buildIdentity, sourceLockHash } from '../identity.js';
-import { bytes32, hexQuantity, object, type Pin, type Runtime } from '../runtime.js';
+import {
+  deployments,
+  probeDeployment,
+  witnessId,
+  type ChainPin,
+  type ChainReader,
+} from './probe.js';
+import { bytes32, hexQuantity, object } from './values.js';
 import {
   assessRoute,
   type Delivery,
@@ -121,9 +126,9 @@ const hostnameOf =
 /** The pin a chain is read at: its settled block, or its accepted head. */
 const choosePin = async (
   side: Side,
-  runtime: Runtime,
+  runtime: ChainReader,
   signal: AbortSignal,
-): Promise<Pin | null> => {
+): Promise<ChainPin | null> => {
   const heights: bigint[] = [];
   for (const endpoint of side.chain.endpoints) {
     try {
@@ -289,11 +294,11 @@ const remoteQueries = (m: Manifest, i: number): { logs: LogQuery[]; calls: CallQ
 const collectSide = async (args: {
   readonly m: Manifest;
   readonly side: Side;
-  readonly pin: Pin;
+  readonly pin: ChainPin;
   readonly queries: { logs: LogQuery[]; calls: CallQuery[] };
   readonly required: number;
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly runtime: Runtime;
+  readonly runtime: ChainReader;
   readonly policy: Policy;
   readonly maxLogs: number;
   readonly signal: AbortSignal;
@@ -415,10 +420,18 @@ const pinRef = (reading: ChainReading) => ({
 export const collectConfigured = async (args: {
   readonly manifest: LoadedDocument<Manifest>;
   readonly policy: LoadedDocument<Policy>;
-  readonly pins: readonly Pin[] | null;
+  readonly pins: readonly ChainPin[] | null;
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly runtime: Runtime;
+  readonly runtime: ChainReader;
   readonly maxLogs: number;
+  /** Who produced the evidence: the CLI and the agent each name themselves. */
+  readonly producer: {
+    readonly producer: 'ictt-sentinel';
+    readonly buildCommit: string;
+    readonly artifactChecksum: string;
+  };
+  /** Digest of the protocol source-lock document the semantics are bound to. */
+  readonly sourceLockHash: string;
   readonly signal: AbortSignal;
 }): Promise<CollectResult> => {
   const m = args.manifest.value;
@@ -843,10 +856,10 @@ const assemble = (
   const observedAt = new Date(nowMs).toISOString();
   const draft: BundleDraft = {
     core: {
-      producer: buildIdentity(),
+      producer: args.producer,
       sourceLock: {
         commitSha: PINNED_COMMIT_SHA,
-        sourceLockHash: sourceLockHash(),
+        sourceLockHash: args.sourceLockHash,
         adapterId: input.provenance.adapterId ?? '',
         adapterVersion: input.provenance.adapterVersion ?? 0,
         adapterEpoch: `pinned-${PINNED_COMMIT_SHA.slice(0, 8)}`,

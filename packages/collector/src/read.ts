@@ -1,6 +1,7 @@
 import type { Endpoint } from '@ictt-sentinel/config';
 import { canonicalStringify } from '@ictt-sentinel/evidence';
-import { bytes32, hexQuantity, object, type Runtime } from '../runtime.js';
+import type { ChainReader } from './probe.js';
+import { bytes32, hexQuantity, object } from './values.js';
 
 /**
  * What one witness reports for one chain at one pin.
@@ -54,12 +55,11 @@ export class ReadingRefused extends Error {
   override readonly name = 'ReadingRefused';
 }
 
-const HEX20 = /^0x[0-9a-f]{40}$/;
 const HEX32 = /^0x[0-9a-f]{64}$/;
 const HEX_DATA = /^0x([0-9a-f]{2})*$/;
 
 const block = async (
-  runtime: Runtime,
+  runtime: ChainReader,
   endpoint: Endpoint,
   number: bigint,
   signal: AbortSignal,
@@ -127,7 +127,7 @@ const order = (a: RawLog, b: RawLog): number => {
  * it is a refusal, never a truncated answer.
  */
 export const readChain = async (args: {
-  readonly runtime: Runtime;
+  readonly runtime: ChainReader;
   readonly endpoint: Endpoint;
   readonly pin: { readonly blockNumber: bigint; readonly blockHash: string };
   readonly logs: readonly LogQuery[];
@@ -222,5 +222,3 @@ export const agreeOnReadings = <K>(
     return { ok: false, reason: 'insufficient' };
   return { ok: true, reading: first.reading, witnesses: readings.map((r) => r.witness) };
 };
-
-export const isAddress = (value: string): boolean => HEX20.test(value);

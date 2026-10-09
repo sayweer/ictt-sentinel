@@ -1,0 +1,51 @@
+{
+  "name": "@ictt-sentinel/collector",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Live, witnessed collection of canonical ERC20 economic evidence.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "ictt-sentinel": {
+    "layer": 2,
+    "mayDependOn": [
+      "@ictt-sentinel/domain",
+      "@ictt-sentinel/config",
+      "@ictt-sentinel/evidence",
+      "@ictt-sentinel/invariant-core",
+      "@ictt-sentinel/ictt-adapters",
+      "@ictt-sentinel/rpc-quorum"
+    ]
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --build --force",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "test": "vitest run --root ../.."
+  },
+  "dependencies": {
+    "@ictt-sentinel/domain": "workspace:*",
+    "@ictt-sentinel/config": "workspace:*",
+    "@ictt-sentinel/evidence": "workspace:*",
+    "@ictt-sentinel/invariant-core": "workspace:*",
+    "@ictt-sentinel/ictt-adapters": "workspace:*",
+    "@ictt-sentinel/rpc-quorum": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "eslint": "10.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}

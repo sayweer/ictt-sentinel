@@ -35,7 +35,7 @@ import {
 } from './runtime.js';
 import { deployments, doctorConfigured, witnessId } from './doctor.js';
 import { discoverConfigured } from './discovery.js';
-import { collectConfigured } from './collect/collect.js';
+import { collectConfigured } from '@ictt-sentinel/collector';
 
 /** Bind observations to the actual reviewed files, never merely a claimed digest. */
 export const bindBundle = (
@@ -234,6 +234,8 @@ export const runAsync = async (
         env: options.env,
         runtime,
         maxLogs: args.maxFacts,
+        producer: buildIdentity(),
+        sourceLockHash: sourceLockHash(),
         signal,
       });
       if (collected.status === 'unknown') {

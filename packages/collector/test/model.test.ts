@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import type { TransferrerPayload } from '@ictt-sentinel/ictt-adapters';
-import {
-  assessRoute,
-  type Delivery,
-  type Fact,
-  type Route,
-  type SideFacts,
-} from '../src/collect/model.js';
+import { assessRoute, type Delivery, type Fact, type Route, type SideFacts } from '../src/model.js';
 
 const HOME = `0x${'aa'.repeat(32)}`;
 const REMOTE = `0x${'bb'.repeat(32)}`;

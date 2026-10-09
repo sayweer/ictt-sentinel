@@ -17,6 +17,9 @@
       "path": "./packages/alerts"
     },
     {
+      "path": "./packages/collector"
+    },
+    {
       "path": "./packages/config"
     },
     {
