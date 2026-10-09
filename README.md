@@ -16,9 +16,10 @@
 
 > [!IMPORTANT]
 > **Release status: Technical Preview.** The pure invariant engine, evidence verifier, live
-> deployment doctor, live remote discovery, accepted-log replay, alert outbox, hosted evidence
-> API, and read-only console are implemented and tested. Live RPC observations are not yet wired
-> into an end-to-end economic evidence bundle, so this release must not be presented as a
+> deployment doctor, live remote discovery, accepted-log replay, live canonical ERC20 evidence
+> collection from the CLI, alert outbox, hosted evidence API, and read-only console are
+> implemented and tested. The watcher daemon does not yet run the economic collector, and no
+> real deployment has been evaluated end to end, so this release must not be presented as a
 > production or mainnet safety system.
 
 ## What is ictt-sentinel?
@@ -263,7 +264,20 @@ The checkpoint is bound to the exact bundle hash. A gap or disagreement cannot a
 Discovery never edits or approves the baseline. A human must verify addresses, chain identities,
 proxy implementations, code hashes, decimals, census coverage, and RPC independence.
 
-Configured `check`, `replay`, and `evidence export` currently consume a pre-built evidence bundle:
+Collect live economic evidence for a canonical ERC20 deployment. Every approved chain is read at
+its settled (or accepted) pin through independent witnesses whose complete readings must be
+identical; the bundle is written only if the offline verifier accepts it:
+
+```bash
+pnpm run cli -- collect \
+  --manifest deployment.yml \
+  --policy policy.yml \
+  --max-facts 10000 \
+  --json
+```
+
+Configured `check`, `replay`, and `evidence export` consume a written evidence bundle, including
+`collected.evidence.json`:
 
 ```bash
 pnpm run cli -- check \
@@ -273,9 +287,10 @@ pnpm run cli -- check \
   --offline
 ```
 
-The live doctor and discovery paths are implemented. The watcher performs live accepted-log replay,
-freshness tracking, persistence, and alert delivery. Building the economic evidence input directly
-from those live observations remains the main technical-preview gap.
+The live doctor, discovery and `collect` paths are implemented. The watcher performs live
+accepted-log replay, freshness tracking, persistence, and alert delivery, but does not yet run the
+economic collector; wiring it into the daemon, and evaluating a real deployment, remain the
+technical-preview gaps. Native token remotes are not collected (`UNKNOWN`).
 
 For the full operator sequence, database role separation, controlled failure demos, and evidence
 handoff checklist, follow [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md).

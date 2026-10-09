@@ -132,9 +132,11 @@ pnpm run cli -- replay \
 ```
 
 Sonuç `OK`, `WARN`, `CRITICAL` veya `UNKNOWN`'dır. Bu configured CLI yolu bugün daha önce
-yakalanmış, manifest/policy'ye bağlanabilen evidence girdisini offline yeniden oynatır. Canlı
-watcher accepted-log replay ve checkpoint üretir; ekonomik state observation'larını aynı bundle'a
-uçtan uca bağlayan collector technical-preview kapsamındaki açık iştir.
+yakalanmış, manifest/policy'ye bağlanabilen evidence girdisini offline yeniden oynatır. Canonical
+ERC20 için `collect` komutu bu evidence'ı canlı üretir (`collected.evidence.json`): her onaylı zincir
+settled (veya accepted) pin'de bağımsız tanıklarla okunur, okumalar birebir aynı değilse sonuç
+`UNKNOWN`'dır. Canlı watcher accepted-log replay ve checkpoint üretir; ekonomik collector'ı daemon'a
+bağlamak technical-preview kapsamındaki açık iştir.
 
 ---
 

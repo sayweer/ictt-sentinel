@@ -24,6 +24,7 @@ bağlayıcı olan kararları kaydeder.
 | [0011](adr/0011-acp-194-accepted-state-superseded.md) | ACP-194 aktif: C-Chain'de accepted-state truth geçersiz | Kabul — ADR-0002'yi C-Chain için kısmen yerine geçer | Helicon sonrası C-Chain pin'i accepted-quorum ile hüküm taşımaz → `UNKNOWN`; `settled-quorum` ayrı iş |
 | [0012](adr/0012-security-patch-upgrades-2026-10.md) | Kilit sonrası yayımlanan advisory'ler için güvenlik yamaları | Kabul | `fastify` 5.12.5 exact pin; transitive paketler mevcut aralıklar içinde yeniden çözüldü, override yok |
 | [0013](adr/0013-settled-quorum-anchor.md) | `settled-quorum`: settled bloğa anchor | Kabul — ADR-0011'in göçünü tamamlar | Head = tanıkların `finalized` bloğunun en küçüğü; `finalityBasisStands` tek kural; bundle pin'i manifest modunu taşır |
+| [0014](adr/0014-live-economic-collector.md) | Canonical ERC20 için canlı ekonomik collector | Kabul | `collect`: settled/accepted pin, byte-identical tanık okumaları, kilitli ABI ile decode, kapalı kesit modeli, verifier'dan geçmeyen bundle yazılmaz |
 
 ---
 
